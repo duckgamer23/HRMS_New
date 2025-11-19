@@ -100,7 +100,8 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
 <div id="loginWrap" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(11,18,32,0.06);z-index:999">
   <div style="width:520px;background:var(--panel);border-radius:12px;padding:22px;box-shadow:var(--shadow)">
     <h2 style="margin:0 0 10px 0">MAFS HRMS — Sign in</h2>
-    <div id="firstRunNote" class="tiny" style="display:none;margin-bottom:10px;color:var(--muted)"><strong>First-time:</strong> create Super-Admin account.</div>
+    <div class="tiny" style="margin-bottom:12px;color:var(--muted)">Sign in as <strong>Employee</strong>, <strong>Admin</strong>, or <strong>Super-Admin</strong></div>
+    <div id="firstRunNote" class="tiny" style="display:none;margin-bottom:10px;padding:8px;background:rgba(79,70,229,0.1);border-radius:6px;color:var(--accent)"><strong>First-time Setup:</strong> Create the first Super-Admin account. After this, you can create employee and admin accounts from the dashboard.</div>
     <div style="display:grid;gap:8px">
       <input id="loginUser" placeholder="Username" class="input"/>
       <input id="loginPass" type="password" placeholder="Password" class="input"/>
@@ -109,7 +110,7 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
         <button id="createSuperBtn" class="btn ghost" style="display:none">Create Super-Admin</button>
       </div>
       <div id="loginMsg" class="tiny" style="color:#c0392b"></div>
-      <div class="tiny" style="margin-top:8px;color:var(--muted)">Credentials stored locally. For multi-PC use choose backend later.</div>
+      <div class="tiny" style="margin-top:8px;color:var(--muted)">Don't have credentials? Contact your administrator. They will create your account and provide login details.</div>
     </div>
   </div>
 </div>
