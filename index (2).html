@@ -274,6 +274,10 @@ async function loadData(syncFirestore = true){
   const db = await checkFirestore();
   const init={users:[],employees:[],attendance:{},leaves:[],payslips:[],announcements:'',settings:{companyName:'MAFS Studio',currency:'₹'},notifications:[]};
   
+  // Check if localStorage has data (to detect new devices)
+  const raw = localStorage.getItem(STORAGE_KEY);
+  const isNewDevice = !raw || raw === '{}' || raw === 'null';
+  
   // If Firestore is available, try loading from there FIRST (for multi-device sync)
   if(db && syncFirestore){
     try {
@@ -283,10 +287,15 @@ async function loadData(syncFirestore = true){
       
       if(docSnap.exists()){
         const firestoreData = docSnap.data();
-        console.log('✅ Loaded data from Firestore (cloud)');
-        // Save to localStorage for faster future loads
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(firestoreData));
-        return firestoreData;
+        // On new devices OR if Firestore has users, always use Firestore data
+        if(isNewDevice || (firestoreData.users && firestoreData.users.length > 0)){
+          console.log('✅ Loaded data from Firestore (cloud) - using cloud data');
+          // Save to localStorage for faster future loads
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(firestoreData));
+          return firestoreData;
+        } else {
+          console.log('📝 Firestore has data but no users - checking local...');
+        }
       } else {
         console.log('📝 No data in Firestore yet - will create on first save');
       }
@@ -295,23 +304,35 @@ async function loadData(syncFirestore = true){
       console.error('Error code:', e.code);
       if(e.code === 'permission-denied'){
         console.error('⚠️ PERMISSION DENIED - Update Firestore security rules!');
+        console.error('Go to: https://console.firebase.google.com/project/hrms-new-36aec/firestore/rules');
       }
       // Continue to localStorage fallback
     }
   }
   
   // Fallback to localStorage (fast, local cache)
-  const raw = localStorage.getItem(STORAGE_KEY);
   if(!raw){
     console.log('📝 No local data found - initializing fresh database');
     localStorage.setItem(STORAGE_KEY,JSON.stringify(init));
-    // Try to save initial empty structure to Firestore if available
+    // Try to save initial empty structure to Firestore if available (only if Firestore is empty)
     if(db && syncFirestore) {
       try {
-        const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js");
+        const { doc, getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js");
         const dataDoc = doc(db, 'hrms_data', FIRESTORE_DOC_ID);
-        await setDoc(dataDoc, init, { merge: false });
-        console.log('✅ Initialized empty database in Firestore');
+        const docSnap = await getDoc(dataDoc);
+        // Only create empty doc if Firestore doesn't exist
+        if(!docSnap.exists()){
+          await setDoc(dataDoc, init, { merge: false });
+          console.log('✅ Initialized empty database in Firestore');
+        } else {
+          // Firestore exists but wasn't loaded above - try loading again
+          const firestoreData = docSnap.data();
+          if(firestoreData && Object.keys(firestoreData).length > 0){
+            console.log('✅ Found Firestore data - using it instead of empty init');
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(firestoreData));
+            return firestoreData;
+          }
+        }
       } catch(e){
         console.warn('⚠️ Could not initialize Firestore:', e.message);
       }
