@@ -213,21 +213,31 @@ const FIRESTORE_DOC_ID = 'hrms_data';
 let firestoreReady = false;
 let firestoreUnsubscribe = null;
 
-// Check if Firestore is available
-function checkFirestore(){
-  if(typeof window !== 'undefined' && window.firebaseDb){
-    console.log('✅ Firestore DB is available');
-    return window.firebaseDb;
+// Check if Firestore is available (wait up to 3 seconds for initialization)
+async function checkFirestore(){
+  // Wait for Firestore to initialize (module scripts load asynchronously)
+  for(let i = 0; i < 30; i++){
+    if(typeof window !== 'undefined' && window.firebaseDb){
+      console.log('✅ Firestore DB is available');
+      return window.firebaseDb;
+    }
+    await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
   }
-  console.warn('⚠️ Firestore DB not available - window.firebaseDb is undefined');
+  
+  console.warn('⚠️ Firestore DB not available - window.firebaseDb is undefined after waiting');
+  console.warn('Check if Firebase SDK module loaded correctly');
   return null;
 }
 
 // Test Firestore connection
 async function testFirestoreConnection(){
-  const db = checkFirestore();
+  const db = await checkFirestore();
   if(!db) {
-    console.error('❌ Firestore not initialized');
+    console.error('❌ Firestore not initialized - window.firebaseDb is not available');
+    console.error('This usually means:');
+    console.error('1. Firestore is not enabled in Firebase Console');
+    console.error('2. Firebase SDK failed to load');
+    console.error('3. Check browser console for module loading errors');
     return false;
   }
   
@@ -237,15 +247,24 @@ async function testFirestoreConnection(){
     await setDoc(testDoc, { test: true, timestamp: Date.now() });
     const testSnap = await getDoc(testDoc);
     if(testSnap.exists()){
-      console.log('✅ Firestore connection test: SUCCESS');
+      console.log('✅ Firestore connection test: SUCCESS - Can read and write!');
       return true;
     }
-    console.error('❌ Firestore connection test: FAILED');
+    console.error('❌ Firestore connection test: FAILED - Document was not created');
     return false;
   } catch(e){
     console.error('❌ Firestore connection test error:', e);
     console.error('Error code:', e.code);
     console.error('Error message:', e.message);
+    if(e.code === 'permission-denied'){
+      console.error('⚠️ PERMISSION DENIED - Firestore security rules are blocking access');
+      console.error('Go to: https://console.firebase.google.com/project/hrms-new-36aec/firestore/rules');
+      console.error('Update rules to allow read/write temporarily for testing');
+    } else if(e.code === 'unavailable'){
+      console.error('⚠️ FIRESTORE UNAVAILABLE - Database may not be enabled');
+      console.error('Go to: https://console.firebase.google.com/project/hrms-new-36aec/firestore');
+      console.error('Click "Create database" if it does not exist');
+    }
     return false;
   }
 }
@@ -279,7 +298,7 @@ async function loadData(syncFirestore = true){
 
 // Sync data with Firestore in background (non-blocking)
 async function syncToFirestoreInBackground(localData){
-  const db = checkFirestore();
+  const db = await checkFirestore();
   if(!db) return;
   
   // Run in background without blocking
@@ -333,7 +352,7 @@ async function syncToFirestoreInBackground(localData){
 
 // Save data to Firestore (online) - non-blocking
 async function saveDataToFirestore(data){
-  const db = checkFirestore();
+  const db = await checkFirestore();
   if(!db) {
     console.warn('⚠️ Firestore not available - window.firebaseDb not found');
     return false;
@@ -394,8 +413,11 @@ async function saveData(waitForFirestore = false){
 
 // Setup Firestore real-time listener for multi-device sync
 async function setupFirestoreListener(){
-  const db = checkFirestore();
-  if(!db) return;
+  const db = await checkFirestore();
+  if(!db) {
+    console.warn('⚠️ Cannot setup Firestore listener - DB not available');
+    return;
+  }
   
   try {
     const { doc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js");
