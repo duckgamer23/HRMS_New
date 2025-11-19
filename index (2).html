@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>MAFS HRMS — Updated Attendance Rules</title>
+<style>
+:root{
+  --bg:#f5f8fb; --panel:#ffffff; --muted:#6b7280; --accent:#4f46e5; --accent-2:#22c1c3;
+  --text:#0b1220; --glass: rgba(11,18,32,0.04); --shadow: 0 10px 30px rgba(11,18,32,0.06);
+  --radius:12px;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--text);-webkit-font-smoothing:antialiased}
+.app{display:flex;min-height:100vh;align-items:stretch}
+.sidebar{width:300px;padding:26px;background:linear-gradient(180deg,#fff,#f3fbff);border-right:1px solid var(--glass);display:flex;flex-direction:column;gap:18px;box-shadow:var(--shadow)}
+.brand{display:flex;align-items:center;gap:12px;font-weight:800;color:var(--accent);font-size:18px}
+.brand .logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:18px}
+.side-search input{width:100%;padding:10px;border-radius:999px;border:1px solid rgba(11,18,32,0.06);background:transparent;color:var(--muted)}
+.nav-group{margin-top:6px}
+.nav-title{font-weight:700;color:var(--muted);font-size:12px;margin:10px 6px}
+.nav-list{display:flex;flex-direction:column;gap:8px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;border:none;background:transparent;cursor:pointer;color:var(--muted)}
+.nav-item .icon{width:36px;height:36px;border-radius:8px;background:rgba(11,18,32,0.03);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--accent)}
+.nav-item .label{font-weight:600}
+.nav-item:hover{color:var(--text);background:linear-gradient(90deg, rgba(79,70,229,0.06), rgba(34,193,195,0.03))}
+.nav-item.active{background:linear-gradient(90deg, rgba(79,70,229,0.14), rgba(34,193,195,0.06));color:var(--text);box-shadow:0 8px 24px rgba(79,70,229,0.04)}
+.submenu{margin-left:48px;display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.submenu .sub{padding:8px 12px;border-radius:8px;color:var(--muted);cursor:pointer}
+.submenu .sub:hover{background:rgba(79,70,229,0.04);color:var(--text)}
+.user-area{margin-top:auto;display:flex;align-items:center;gap:12px;padding-top:10px;border-top:1px solid rgba(11,18,32,0.03)}
+.user-area .avatar{width:44px;height:44px;border-radius:10px;background:linear-gradient(90deg,#fff,#f0f4f8);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--text)}
+.user-area .meta{font-size:13px;color:var(--muted)}
+.signout-btn{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:12px}
+.main{flex:1;padding:28px;display:flex;flex-direction:column;gap:18px}
+.topbar{display:flex;justify-content:space-between;align-items:center}
+.searchbar{display:flex;gap:12px;align-items:center}
+.searchbar input{padding:10px;border-radius:10px;border:1px solid rgba(11,18,32,0.06);width:320px}
+.columns{display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start}
+.card{background:var(--panel);border-radius:var(--radius);padding:16px;border:1px solid rgba(11,18,32,0.03);box-shadow:var(--shadow)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.tile{padding:14px;border-radius:12px;background:linear-gradient(180deg,#ffffff,#fbfdff);border:1px solid rgba(11,18,32,0.03)}
+.tile .label{font-size:12px;color:var(--muted)}
+.tile .value{font-weight:800;font-size:26px;margin-top:6px}
+.landscape{display:flex;gap:18px;border-radius:12px;overflow:hidden;background:linear-gradient(90deg,var(--accent),var(--accent-2));color:white}
+.landscape .left{padding:18px;flex:0 0 420px;display:flex;flex-direction:column;gap:10px}
+.landscape .left .avatar{width:84px;height:84px;border-radius:12px;background:white;color:#0b1220;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:28px}
+.landscape .right{background:#fff;color:var(--text);padding:18px;flex:1;display:flex;flex-direction:column;gap:12px}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:#fbfdff;padding:10px;border-radius:10px;border:1px solid rgba(11,18,32,0.03)}
+.table{width:100%;border-collapse:collapse}
+.table th{font-size:13px;color:var(--muted);text-align:left;padding:8px}
+.table td{padding:10px;border-top:1px solid rgba(11,18,32,0.04)}
+.form-row{display:flex;gap:8px}
+.input{padding:10px;border-radius:8px;border:1px solid rgba(11,18,32,0.06);width:100%}
+.btn{padding:9px 12px;border-radius:8px;border:none;cursor:pointer}
+.btn.primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:white;font-weight:700}
+.btn.ghost{background:transparent;border:1px solid rgba(11,18,32,0.06);color:var(--muted)}
+.tiny{font-size:12px;color:var(--muted)}
+.toast{position:fixed;right:24px;top:24px;min-width:280px;padding:12px;border-radius:10px;border:1px solid rgba(11,18,32,0.06);background:linear-gradient(180deg,#ffffff,#f8fdff);box-shadow:0 8px 20px rgba(11,18,32,0.08);z-index:9999}
+.toast.success{border-left:6px solid var(--accent-2)}
+.toast.warn{border-left:6px solid #f59e0b}
+@media(max-width:1100px){ .sidebar{display:none} .columns{grid-template-columns:1fr} }
+</style>
+<!-- Firebase SDK -->
+<script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-analytics.js";
+
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+  
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyC21spMSCxJiFujIhAws1o8Uj4tKj8oD7Q",
+    authDomain: "hrms-new-36aec.firebaseapp.com",
+    projectId: "hrms-new-36aec",
+    storageBucket: "hrms-new-36aec.firebasestorage.app",
+    messagingSenderId: "174602894316",
+    appId: "1:174602894316:web:e4f744e0d4280ea6ea1ec9",
+    measurementId: "G-LZNCY029F9"
+  };
+
+  // Initialize Firebase
+  const firebaseApp = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(firebaseApp);
+
+  // Make Firebase app available globally if needed
+  window.firebaseApp = firebaseApp;
+  window.firebaseAnalytics = analytics;
+</script>
+</head>
+<body>
+
+<!-- LOGIN / FIRST RUN (create SuperAdmin) -->
+<div id="loginWrap" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(11,18,32,0.06);z-index:999">
+  <div style="width:520px;background:var(--panel);border-radius:12px;padding:22px;box-shadow:var(--shadow)">
+    <h2 style="margin:0 0 10px 0">MAFS HRMS — Sign in</h2>
+    <div id="firstRunNote" class="tiny" style="display:none;margin-bottom:10px;color:var(--muted)"><strong>First-time:</strong> create Super-Admin account.</div>
+    <div style="display:grid;gap:8px">
+      <input id="loginUser" placeholder="Username" class="input"/>
+      <input id="loginPass" type="password" placeholder="Password" class="input"/>
+      <div style="display:flex;gap:8px">
+        <button id="loginBtn" class="btn primary">Sign in</button>
+        <button id="createSuperBtn" class="btn ghost" style="display:none">Create Super-Admin</button>
+      </div>
+      <div id="loginMsg" class="tiny" style="color:#c0392b"></div>
+      <div class="tiny" style="margin-top:8px;color:var(--muted)">Credentials stored locally. For multi-PC use choose backend later.</div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app" style="display:none">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">M</div> MAFS HRMS</div>
+    <div class="side-search"><input id="sideSearch" placeholder="Search employees..." /></div>
+
+    <div class="nav-group"><div class="nav-title">MAIN</div><div class="nav-list" id="navMain"></div></div>
+    <div class="nav-group"><div class="nav-title">EMPLOYEE</div><div class="nav-list" id="navEmp"></div></div>
+    <div class="nav-group"><div class="nav-title">ADMIN</div><div class="nav-list" id="navAdmin"></div></div>
+
+    <div class="user-area">
+      <div class="avatar" id="userAvatar">S</div>
+      <div><div id="userName" style="font-weight:700">—</div><div class="tiny" id="userRole">—</div></div>
+      <div style="margin-left:auto"><button id="sideSignOut" class="signout-btn">Sign out</button></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div><h3 id="pageTitle" style="margin:0">Dashboard</h3><div id="pageSubtitle" class="tiny">Overview</div></div>
+      <div class="searchbar"><input id="globalSearch" placeholder="Quick search employees..." /><button id="exportAll" class="btn ghost">Export</button></div>
+    </div>
+
+    <div class="columns">
+      <div><div id="mainContent"></div></div>
+
+      <div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div><strong>Recent Activity</strong><div class="tiny">Attendance & leaves</div></div>
+            <div><button id="exportCSVs" class="btn ghost">Export CSVs</button></div>
+          </div>
+          <div style="height:12px"></div>
+          <div id="recentWrap" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px"></div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="card"><strong>Announcements</strong><div id="annText" class="tiny" style="margin-top:10px">No announcements</div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Toast root -->
+<div id="toastRoot" aria-live="polite" style="position:fixed;right:20px;top:20px;z-index:9999"></div>
+
+<script>
+/* Updated HRMS single file
+   - If employee already has login -> "Create Login" button removed
+   - Employee 'Mark Present' can be done once per day; then button hidden for that day
+   - Admin table shows only current status (no action buttons)
+   - Local storage sync + notifications remain
+*/
+
+const STORAGE_KEY = 'mafs_hrms_att_once_v1';
+
+function loadData(){ const raw = localStorage.getItem(STORAGE_KEY); if(!raw){ const init={users:[],employees:[],attendance:{},leaves:[],payslips:[],announcements:'',settings:{companyName:'MAFS Studio',currency:'₹'},notifications:[]}; localStorage.setItem(STORAGE_KEY,JSON.stringify(init)); return init;} try{return JSON.parse(raw);}catch(e){console.error('storage parse',e); localStorage.removeItem(STORAGE_KEY); return loadData();}}
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA)); broadcastChange(); }
+
+let DATA = loadData();
+let APP = { currentUser: null };
+
+async function hashSHA256(text){ const enc=new TextEncoder().encode(text); const buf=await crypto.subtle.digest('SHA-256',enc); return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+
+/* DOM refs */
+const loginWrap = document.getElementById('loginWrap'), firstRunNote = document.getElementById('firstRunNote'), createSuperBtn = document.getElementById('createSuperBtn'), loginBtn = document.getElementById('loginBtn'), loginUser = document.getElementById('loginUser'), loginPass = document.getElementById('loginPass'), loginMsg = document.getElementById('loginMsg');
+const app = document.getElementById('app'), navMain = document.getElementById('navMain'), navEmp = document.getElementById('navEmp'), navAdmin = document.getElementById('navAdmin'), userAvatar = document.getElementById('userAvatar'), userName = document.getElementById('userName'), userRole = document.getElementById('userRole'), sideSignOut = document.getElementById('sideSignOut');
+const mainContent = document.getElementById('mainContent'), pageTitle = document.getElementById('pageTitle'), pageSubtitle = document.getElementById('pageSubtitle');
+const recentWrap = document.getElementById('recentWrap'), annText = document.getElementById('annText'), toastRoot = document.getElementById('toastRoot');
+const exportCSVs = document.getElementById('exportCSVs'), exportAll = document.getElementById('exportAll');
+
+/* storage sync */
+function broadcastChange(){ try{ localStorage.setItem('__mafs_sync', JSON.stringify({ts:Date.now()})); }catch(e){ } }
+window.addEventListener('storage',(ev)=>{ if(ev.key === '__mafs_sync'){ DATA = loadData(); onExternalUpdate(); } });
+
+function onExternalUpdate(){ annText.textContent = DATA.announcements || 'No announcements'; refreshRecent(); if(APP.currentUser){ if(APP.currentUser.role === 'employee'){ if(currentView === 'employeeHome') renderEmployeeHome(); } else { if(currentView === 'adminDashboard') renderAdminDashboard(); if(currentView === 'attendanceManagement') renderAttendanceManagement(); if(currentView === 'employeeManagement') renderEmployeeManagement(); } } showPendingNotificationsForCurrentUser(); }
+
+/* notifications */
+function pushNotification({title,message,level='info',targetRoles=['superadmin','admin','hr']}){ const n = {id:'n_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),title,message,level,targetRoles,ts:new Date().toISOString()}; DATA.notifications = DATA.notifications || []; DATA.notifications.push(n); saveData(); if(matchesCurrentUserRole(n.targetRoles)) showToast(n); }
+function showToast(n){ const el = document.createElement('div'); el.className='toast' + (n.level==='success' ? ' success' : n.level==='warn' ? ' warn' : ''); el.innerHTML = `<div style="font-weight:700">${n.title}</div><div class="tiny" style="margin-top:8px;color:var(--muted)">${n.message}</div>`; toastRoot.appendChild(el); setTimeout(()=>{ el.style.transition='opacity 300ms'; el.style.opacity=0; setTimeout(()=>el.remove(),350); },5000); }
+function matchesCurrentUserRole(targetRoles){ if(!APP.currentUser) return false; return targetRoles.indexOf(APP.currentUser.role) !== -1 || targetRoles.indexOf('all') !== -1; }
+function showPendingNotificationsForCurrentUser(){ if(!APP.currentUser || !DATA.notifications) return; const recent = DATA.notifications.slice().reverse().filter(n=>matchesCurrentUserRole(n.targetRoles)).slice(0,5); recent.forEach(n=>showToast(n)); }
+
+/* init login */
+function init(){
+  if(!DATA.users || DATA.users.length === 0){
+    firstRunNote.style.display = 'block';
+    createSuperBtn.style.display = 'inline-block';
+    loginBtn.style.display = 'none';
+    createSuperBtn.onclick = async ()=>{ const u = loginUser.value.trim(); const p = loginPass.value; if(!u||!p){ loginMsg.textContent='Enter username & password'; return; } const ph = await hashSHA256(p); DATA.users.push({id:'u_'+Date.now(), username:u, passwordHash:ph, displayName:u, role:'superadmin'}); saveData(); loginMsg.style.color='green'; loginMsg.textContent='Super-Admin created. Sign in.'; createSuperBtn.style.display='none'; loginBtn.style.display='inline-block'; firstRunNote.style.display='none'; };
+  } else { firstRunNote.style.display='none'; createSuperBtn.style.display='none'; loginBtn.style.display='inline-block'; }
+  loginBtn.onclick = async ()=>{ loginMsg.textContent=''; const u = loginUser.value.trim(); const p = loginPass.value; if(!u||!p){ loginMsg.textContent='Enter username & password'; return;} const user = DATA.users.find(x=>x.username===u); if(!user){ loginMsg.textContent='Invalid credentials'; return;} const ph = await hashSHA256(p); if(ph !== user.passwordHash){ loginMsg.textContent='Invalid credentials'; return;} APP.currentUser = {...user}; afterLogin(); };
+}
+init();
+
+let currentView = null;
+function afterLogin(){ loginWrap.style.display='none'; app.style.display='flex'; userAvatar.textContent = APP.currentUser.displayName.slice(0,1).toUpperCase(); userName.textContent = APP.currentUser.displayName; userRole.textContent = APP.currentUser.role; buildSidebar(); if(APP.currentUser.role === 'employee') renderEmployeeHome(); else renderAdminDashboard(); showPendingNotificationsForCurrentUser(); }
+
+/* Sidebar builders (same pattern) */
+function clearSidebar(){ navMain.innerHTML=''; navEmp.innerHTML=''; navAdmin.innerHTML=''; }
+function buildSidebar(){ clearSidebar(); addNavMain('Dashboard','D', ()=>{ if(isEmployee()) renderEmployeeHome(); else renderAdminDashboard(); }, true); if(!isEmployee()){ addNavAdminItem('Employee Management','E', ()=>renderEmployeeManagement()); addNavAdminItem('Attendance & Leave','A', ()=>renderAttendanceManagement()); addNavAdminItem('Payroll','$', ()=>renderPayroll()); addNavAdminItem('Reports','R', ()=>renderReports()); addNavAdminItem('Settings','S', ()=>renderSettings()); } if(isEmployee()){ addNavEmpItem('Home','🏠', ()=>renderEmployeeHome()); addEmpSubMenu('Profile','👤',[{label:'My Profile',fn:()=>renderMyProfile()},{label:'Other Details',fn:()=>renderMyOtherDetails()},{label:'HR Tools',fn:()=>renderMyHrTools()},{label:'My Salary Details',fn:()=>renderMySalary()},{label:'My Tax Details',fn:()=>renderMyTax()}]); addEmpSubMenu('Leave','🪪',[{label:'Request',fn:()=>renderLeaveApply()},{label:'My Report',fn:()=>renderMyLeaveReport()}]); } }
+function addNavMain(label,icon,onClick,active=false){ const el=document.createElement('div'); el.className='nav-item'+(active?' active':''); el.innerHTML=`<div class="icon">${icon}</div><div class="label">${label}</div>`; el.onclick=()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));el.classList.add('active'); onClick();}; navMain.appendChild(el); }
+function addNavAdminItem(label,icon,onClick){ const el=document.createElement('div'); el.className='nav-item'; el.innerHTML=`<div class="icon">${icon}</div><div class="label">${label}</div>`; el.onclick=()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active')); el.classList.add('active'); onClick();}; navAdmin.appendChild(el); }
+function addNavEmpItem(label,icon,onClick){ const el=document.createElement('div'); el.className='nav-item'; el.innerHTML=`<div class="icon">${icon}</div><div class="label">${label}</div>`; el.onclick=()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active')); el.classList.add('active'); onClick(); }; navEmp.appendChild(el); }
+function addEmpSubMenu(title,icon,items){ const wrapper=document.createElement('div'); wrapper.className='nav-item'; wrapper.innerHTML=`<div class="icon">${icon}</div><div class="label">${title}</div>`; wrapper.onclick=()=>wrapper.classList.toggle('expanded'); navEmp.appendChild(wrapper); const sub=document.createElement('div'); sub.className='submenu'; items.forEach(it=>{ const s=document.createElement('div'); s.className='sub'; s.textContent=it.label; s.onclick=()=>{ it.fn(); document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active')); wrapper.classList.add('active'); }; sub.appendChild(s); }); navEmp.appendChild(sub); }
+
+/* role helpers */
+function isEmployee(){ return APP.currentUser && APP.currentUser.role === 'employee'; }
+function isSuperAdmin(){ return APP.currentUser && APP.currentUser.role === 'superadmin'; }
+function isAdminOrHr(){ return APP.currentUser && (APP.currentUser.role === 'admin' || APP.currentUser.role === 'hr' || APP.currentUser.role === 'superadmin'); }
+
+/* ---------- Pages ---------- */
+function renderAdminDashboard(){ currentView='adminDashboard'; pageTitle.textContent='Dashboard'; pageSubtitle.textContent='Admin overview'; mainContent.innerHTML=''; const tiles=document.createElement('div'); tiles.className='tiles'; tiles.appendChild(makeTile('Total Employees', DATA.employees.length)); tiles.appendChild(makeTile('Active Today', Object.values(DATA.attendance).filter(a=>a.date===todayKey()).length)); tiles.appendChild(makeTile('Pending Leaves', DATA.leaves.filter(l=>l.status==='Pending').length)); mainContent.appendChild(tiles); const snap=document.createElement('div'); snap.className='card'; snap.style.marginTop='12px'; snap.innerHTML='<h3 style="margin-top:0">Attendance Snapshot</h3><div class="tiny">Today</div>'; DATA.employees.slice(0,50).forEach(e=>{ const key=e.id+'_'+todayKey(); const rec = DATA.attendance[key]; const row=document.createElement('div'); row.style.display='flex'; row.style.justifyContent='space-between'; row.style.padding='10px 0'; row.style.borderBottom='1px dashed rgba(11,18,32,0.03)'; const left=document.createElement('div'); left.textContent=e.name; left.style.color='var(--muted)'; const right=document.createElement('div'); right.textContent = rec ? rec.status + (rec.time ? ' — ' + rec.time : '') : '—'; row.appendChild(left); row.appendChild(right); snap.appendChild(row); }); mainContent.appendChild(snap); refreshRecent(); }
+
+function renderEmployeeHome(){ currentView='employeeHome'; pageTitle.textContent='Home'; pageSubtitle.textContent='Personal overview'; mainContent.innerHTML=''; const empId = getEmployeeIdFromUser(APP.currentUser); const emp = DATA.employees.find(e=>e.id===empId) || {name:APP.currentUser.displayName, role:APP.currentUser.role||'employee'}; const land=document.createElement('div'); land.className='landscape'; const left=document.createElement('div'); left.className='left'; left.innerHTML=`<div style="display:flex;gap:12px;align-items:center"><div class="avatar">${emp.name.slice(0,2).toUpperCase()}</div><div><div style="font-weight:800">${emp.name}</div><div class="tiny">${emp.role||'Employee'}</div></div></div><div style="height:8px"></div><button class="btn ghost" onclick="alert('Contact manager (demo)')">View Manager Details</button>`; const right=document.createElement('div'); right.className='right'; right.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:800">ATTENDANCE STATISTICS</div><div class="tiny">Last updated: now</div></div>`; const grid=document.createElement('div'); grid.className='stats-grid'; const stats=[["Today's Last Punch", getAttendanceForEmployee(emp.id).time || 'Unswiped'],["Tomorrow's Shift",'09:00 - 18:00'],["Today's Punch", getAttendanceForEmployee(emp.id).status || 'Unswiped'],["Holiday's this Year",'11'],["Late Marks",'0'],["LOP",'0'],["Invalid Punches",'2'],["Unpunches",'0'],["Pending OnDuty",'0']]; stats.forEach(s=>{ const sb=document.createElement('div'); sb.className='stat'; sb.innerHTML=`<div class="tiny">${s[0]}</div><div style="font-weight:800;margin-top:8px">${s[1]}</div>`; grid.appendChild(sb); }); right.appendChild(grid); const actions=document.createElement('div'); actions.style.marginTop='12px'; const key = emp.id+'_'+todayKey(); const already = !!DATA.attendance[key]; if(!already){ const markBtn=document.createElement('button'); markBtn.className='btn primary'; markBtn.textContent='Mark Present'; markBtn.onclick = ()=>{ markPresentAndNotify(emp.id, emp.name); markBtn.style.display='none'; }; actions.appendChild(markBtn); } else { // show status only (no button)
+    const statusSpan = document.createElement('div'); statusSpan.className='tiny'; statusSpan.style.fontWeight='700'; statusSpan.textContent = (DATA.attendance[key] && DATA.attendance[key].status) ? DATA.attendance[key].status + (DATA.attendance[key].time ? ' — '+DATA.attendance[key].time : '') : '—'; actions.appendChild(statusSpan);
+  } const leaveBtn=document.createElement('button'); leaveBtn.className='btn ghost'; leaveBtn.style.marginLeft='8px'; leaveBtn.textContent='Apply Leave'; leaveBtn.onclick = ()=>renderLeaveApply(); actions.appendChild(leaveBtn); right.appendChild(actions); land.appendChild(left); land.appendChild(right); mainContent.appendChild(land); refreshRecent(); }
+
+/* Employee create / view pages (same as before) */
+function renderMyProfile(){ currentView='myProfile'; pageTitle.textContent='My Profile'; pageSubtitle.textContent=''; mainContent.innerHTML=''; const empId=getEmployeeIdFromUser(APP.currentUser); const emp = DATA.employees.find(e=>e.id===empId); const card=document.createElement('div'); card.className='card'; if(!emp){ card.innerHTML=`<h3 style="margin-top:0">${APP.currentUser.displayName}</h3><div class="tiny muted">No HR record. Contact admin.</div>`; mainContent.appendChild(card); return; } card.innerHTML=`<div style="display:flex;gap:12px;align-items:center"><div style="width:84px;height:84px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;color:#0b1220">${emp.name.slice(0,2).toUpperCase()}</div><div><h3 style="margin:0">${emp.name}</h3><div class="tiny">${emp.role}</div></div></div><div style="height:12px"></div>`; if(emp.photo) card.innerHTML += `<div style="margin-bottom:10px"><img src="${emp.photo}" style="max-width:160px;border-radius:8px;"/></div>`; card.innerHTML += `<div class="tiny"><strong>Email:</strong> ${emp.email||'—'}</div><div style="height:8px"></div><div class="tiny"><strong>Bio:</strong><div style="margin-top:6px">${emp.bio || '<span class="tiny muted">No bio</span>'}</div></div>`; mainContent.appendChild(card); }
+
+/* Leave apply (employee) */
+function renderLeaveApply(){ currentView='leaveApply'; pageTitle.textContent='Apply Leave'; pageSubtitle.textContent=''; mainContent.innerHTML=''; const panel=document.createElement('div'); panel.className='card'; panel.innerHTML = '<h3 style="margin-top:0">Apply for Leave</h3>'; const form=document.createElement('div'); form.style.display='grid'; form.style.gap='8px'; const type=document.createElement('select'); type.className='input'; ['Annual','Sick','Casual','Other'].forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; type.appendChild(o); }); const from=document.createElement('input'); from.type='date'; from.className='input'; const to=document.createElement('input'); to.type='date'; to.className='input'; const reason=document.createElement('textarea'); reason.className='input'; reason.rows=3; const submit=document.createElement('button'); submit.className='btn primary'; submit.textContent='Apply'; submit.onclick = ()=>{ if(!from.value||!to.value) return alert('Pick dates'); const empId=getEmployeeIdFromUser(APP.currentUser); const emp = DATA.employees.find(e=>e.id===empId)||{name:APP.currentUser.displayName}; const days=Math.round((new Date(to.value)-new Date(from.value))/86400000)+1; const rec={id:'l'+Date.now(),employeeId:empId,name:emp.name,type:type.value,from:from.value,to:to.value,days,reason:reason.value,status:'Pending',appliedOn:new Date().toISOString()}; DATA.leaves.push(rec); saveData(); pushNotification({title:'Leave applied', message:`${emp.name} applied leave ${from.value}→${to.value}`, level:'info', targetRoles:['superadmin','admin','hr']}); alert('Leave applied'); if(isAdminOrHr()) renderAttendanceManagement(); else renderEmployeeHome(); refreshRecent(); }; form.appendChild(type); form.appendChild(from); form.appendChild(to); form.appendChild(reason); form.appendChild(submit); panel.appendChild(form); mainContent.appendChild(panel); }
+
+/* ---------- Employee Management (admin) changes:
+   - If employee already has a login, do NOT show Create Login button.
+   - Only show Edit and Delete.
+*/
+function renderEmployeeManagement(){ currentView='employeeManagement'; if(!isAdminOrHr()) return accessDenied(); pageTitle.textContent='Employee Management'; pageSubtitle.textContent='Create employee records & login accounts'; mainContent.innerHTML=''; const panel=document.createElement('div'); panel.className='card'; panel.innerHTML = '<h3 style="margin-top:0">Employees</h3>'; const actionRow=document.createElement('div'); actionRow.style.display='flex'; actionRow.style.justifyContent='space-between'; actionRow.style.marginTop='10px'; const left=document.createElement('div'); const addBtn=document.createElement('button'); addBtn.className='btn primary'; addBtn.textContent='Add Employee'; addBtn.onclick = ()=>renderEmployeeAddForm(); left.appendChild(addBtn); actionRow.appendChild(left); const search=document.createElement('input'); search.className='input'; search.placeholder='Filter by name/email...'; search.style.width='320px'; search.oninput = ()=>renderEmployeeTable(panel, search.value.trim()); actionRow.appendChild(search); panel.appendChild(actionRow); renderEmployeeTable(panel, ''); mainContent.appendChild(panel); }
+
+function renderEmployeeTable(container, filter){ const prev=container.querySelector('table'); if(prev) prev.remove(); const table=document.createElement('table'); table.className='table'; table.innerHTML='<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Salary</th><th>Actions</th></tr></thead>'; const tbody=document.createElement('tbody'); DATA.employees.filter(e=>{ if(!filter) return true; return (e.name && e.name.toLowerCase().includes(filter.toLowerCase())) || (e.email && e.email.toLowerCase().includes(filter.toLowerCase())); }).forEach(e=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${e.name}</td><td>${e.email||''}</td><td>${e.role||''}</td><td>${e.joined||''}</td><td>${DATA.settings.currency}${e.baseSalary||0}</td><td></td>`; const td=tr.querySelector('td:last-child'); const edit=document.createElement('button'); edit.className='btn ghost'; edit.textContent='Edit'; edit.onclick = ()=>confirmAdminPasswordThen(()=>renderEmployeeEditForm(e.id)); td.appendChild(edit); const hasLogin = hasLoginForEmployee(e); if(!hasLogin){ const createLogin=document.createElement('button'); createLogin.className='btn primary'; createLogin.style.marginLeft='8px'; createLogin.textContent='Create Login'; createLogin.onclick = ()=>renderCreateLoginForEmployee(e.id); td.appendChild(createLogin); } else { // only show a small label that login exists
+    const lbl = document.createElement('div'); lbl.className='tiny'; lbl.style.display='inline-block'; lbl.style.marginLeft='8px'; lbl.textContent='Login exists'; td.appendChild(lbl);
+  } const del=document.createElement('button'); del.className='btn ghost'; del.style.marginLeft='8px'; del.textContent='Delete'; del.onclick = ()=>confirmAdminPasswordThen(()=>{ if(confirm('Delete employee & associated login?')){ DATA.employees = DATA.employees.filter(x=>x.id!==e.id); // remove any user with matching displayName or email prefix
+    const uname = e.email ? e.email.split('@')[0] : null; if(uname) DATA.users = DATA.users.filter(u=>u.username !== uname); saveData(); renderEmployeeManagement(); } }); td.appendChild(del); tbody.appendChild(tr); }); table.appendChild(tbody); container.appendChild(table); }
+
+/* helper to detect if employee has login (by displayName match or email prefix match) */
+function hasLoginForEmployee(emp){
+  if(!emp) return false;
+  const byDisplay = DATA.users.find(u => (u.displayName && emp.name && u.displayName === emp.name));
+  if(byDisplay) return true;
+  if(emp.email){
+    const prefix = emp.email.split('@')[0];
+    const byPrefix = DATA.users.find(u => u.username === prefix);
+    if(byPrefix) return true;
+  }
+  return false;
+}
+
+/* add employee (same as before) */
+function renderEmployeeAddForm(){ currentView='employeeAdd'; pageTitle.textContent='Add Employee'; pageSubtitle.textContent=''; mainContent.innerHTML=''; const panel=document.createElement('div'); panel.className='card'; panel.innerHTML='<h3 style="margin-top:0">Create Employee Record</h3>'; const form=document.createElement('div'); form.style.display='grid'; form.style.gap='8px'; const name=document.createElement('input'); name.className='input'; name.placeholder='Full name'; const email=document.createElement('input'); email.className='input'; email.placeholder='Email'; const role=document.createElement('input'); role.className='input'; role.placeholder='Role'; const salary=document.createElement('input'); salary.className='input'; salary.type='number'; salary.placeholder='Base salary'; const bio=document.createElement('textarea'); bio.className='input'; bio.rows=3; bio.placeholder='Short bio'; const photo=document.createElement('input'); photo.type='file'; photo.accept='image/*'; const submit=document.createElement('button'); submit.className='btn primary'; submit.textContent='Create Employee'; submit.onclick = ()=>{ if(!name.value) return alert('Name required'); const id='e'+Date.now(); if(photo.files && photo.files[0]){ const r=new FileReader(); r.onload=()=>{ DATA.employees.push({id,name:name.value.trim(),email:email.value.trim(),role:role.value.trim()||'employee',joined:new Date().toISOString().split('T')[0],baseSalary:Number(salary.value||0),bio:bio.value||'',photo:r.result}); saveData(); alert('Employee created'); renderEmployeeManagement(); }; r.readAsDataURL(photo.files[0]); } else { DATA.employees.push({id,name:name.value.trim(),email:email.value.trim(),role:role.value.trim()||'employee',joined:new Date().toISOString().split('T')[0],baseSalary:Number(salary.value||0),bio:bio.value||'',photo:null}); saveData(); alert('Employee created'); renderEmployeeManagement(); } }; form.appendChild(name); form.appendChild(email); form.appendChild(role); form.appendChild(salary); form.appendChild(bio); form.appendChild(photo); form.appendChild(submit); panel.appendChild(form); mainContent.appendChild(panel); }
+
+/* edit employee (admin confirmation) */
+function renderEmployeeEditForm(empId){ currentView='employeeEdit'; if(!isAdminOrHr()) return accessDenied(); pageTitle.textContent='Edit Employee'; pageSubtitle.textContent=''; mainContent.innerHTML=''; const emp = DATA.employees.find(e=>e.id===empId); if(!emp) return alert('Employee not found'); const panel=document.createElement('div'); panel.className='card'; panel.innerHTML = `<h3 style="margin-top:0">Edit ${emp.name}</h3>`; const form=document.createElement('div'); form.style.display='grid'; form.style.gap='8px'; const name=document.createElement('input'); name.className='input'; name.value = emp.name; const email=document.createElement('input'); email.className='input'; email.value = emp.email || ''; const role=document.createElement('input'); role.className='input'; role.value = emp.role || ''; const salary=document.createElement('input'); salary.className='input'; salary.type='number'; salary.value = emp.baseSalary || 0; const bio=document.createElement('textarea'); bio.className='input'; bio.rows=3; bio.value = emp.bio || ''; const photo=document.createElement('input'); photo.type='file'; photo.accept='image/*'; const saveBtn=document.createElement('button'); saveBtn.className='btn primary'; saveBtn.textContent='Save Changes'; saveBtn.onclick = ()=>confirmAdminPasswordThen(()=>{ emp.name = name.value.trim(); emp.email = email.value.trim(); emp.role = role.value.trim(); emp.baseSalary = Number(salary.value||0); emp.bio = bio.value; if(photo.files && photo.files[0]){ const r=new FileReader(); r.onload=()=>{ emp.photo = r.result; saveData(); alert('Saved'); renderEmployeeManagement(); }; r.readAsDataURL(photo.files[0]); } else { saveData(); alert('Saved'); renderEmployeeManagement(); } }); form.appendChild(name); form.appendChild(email); form.appendChild(role); form.appendChild(salary); form.appendChild(bio); form.appendChild(photo); form.appendChild(saveBtn); panel.appendChild(form); mainContent.appendChild(panel); }
+
+/* create login for employee (only shown when hasLoginForEmployee returns false) */
+function renderCreateLoginForEmployee(empId){ if(!isAdminOrHr()) return accessDenied(); const emp = DATA.employees.find(e=>e.id===empId); if(!emp) return alert('Employee not found'); currentView='createLogin'; pageTitle.textContent='Create Login'; pageSubtitle.textContent=`For ${emp.name}`; mainContent.innerHTML=''; const panel=document.createElement('div'); panel.className='card'; panel.innerHTML=`<h3 style="margin-top:0">Create login for ${emp.name}</h3>`; const form=document.createElement('div'); form.style.display='grid'; form.style.gap='8px'; const suggested = emp.email ? emp.email.split('@')[0] : emp.name.split(' ')[0].toLowerCase(); const username=document.createElement('input'); username.className='input'; username.value = suggested; username.placeholder='Username'; const pwd=document.createElement('input'); pwd.className='input'; pwd.type='password'; pwd.placeholder='Password'; const role=document.createElement('select'); role.className='input'; ['employee','hr','admin'].forEach(r=>{ const o=document.createElement('option'); o.value=r; o.textContent=r; if(emp.role===r) o.selected=true; role.appendChild(o); }); const submit=document.createElement('button'); submit.className='btn primary'; submit.textContent='Create Login Account'; submit.onclick = async ()=>{ const uname = username.value.trim(); const password = pwd.value; const r = role.value; if(!uname||!password) return alert('Provide username & password'); if(DATA.users.find(u=>u.username===uname)) return alert('Username exists'); const ph = await hashSHA256(password); DATA.users.push({id:'u_'+Date.now(), username:uname, passwordHash:ph, displayName:emp.name, role:r}); saveData(); alert('User account created. Provide credentials to employee.'); renderEmployeeManagement(); }; form.appendChild(username); form.appendChild(pwd); form.appendChild(role); form.appendChild(submit); panel.appendChild(form); mainContent.appendChild(panel); }
+
+/* Attendance & Leave (admin) — show only status, no action buttons */
+function renderAttendanceManagement(){ currentView='attendanceManagement'; if(!isAdminOrHr()) return accessDenied(); pageTitle.textContent='Attendance & Leave'; pageSubtitle.textContent=''; mainContent.innerHTML=''; const card=document.createElement('div'); card.className='card'; card.innerHTML = '<h3 style="margin-top:0">Attendance</h3>'; const table=document.createElement('table'); table.className='table'; table.innerHTML='<thead><tr><th>Name</th><th>Today</th></tr></thead>'; const tbody=document.createElement('tbody'); DATA.employees.forEach(e=>{ const key=e.id+'_'+todayKey(); const rec=DATA.attendance[key]; const tr=document.createElement('tr'); tr.innerHTML = `<td>${e.name}</td><td>${rec?rec.status + (rec.time ? ' — '+rec.time : '') : '—'}</td>`; tbody.appendChild(tr); }); table.appendChild(tbody); card.appendChild(table); mainContent.appendChild(card); // Leaves card (unchanged)
+  const leavesCard=document.createElement('div'); leavesCard.className='card'; leavesCard.style.marginTop='12px'; leavesCard.innerHTML = '<h3 style="margin-top:0">Leaves</h3>';
+  if(DATA.leaves.length === 0) leavesCard.innerHTML += '<div class="tiny muted">No leaves</div>'; else { const lt=document.createElement('table'); lt.className='table'; lt.innerHTML='<thead><tr><th>Employee</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th>Action</th></tr></thead>'; const lbody=document.createElement('tbody'); DATA.leaves.slice().reverse().forEach(l=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${l.name}</td><td>${l.from}</td><td>${l.to}</td><td>${l.days}</td><td>${l.status}</td><td></td>`; const td=tr.querySelector('td:last-child'); if(l.status==='Pending'){ const appr=document.createElement('button'); appr.className='btn primary'; appr.textContent='Approve'; appr.onclick=()=>{ l.status='Approved'; saveData(); pushNotification({title:'Leave Approved', message:`${l.name}'s leave approved`, level:'success', targetRoles:['all']}); renderAttendanceManagement(); refreshRecent(); }; const rej=document.createElement('button'); rej.className='btn ghost'; rej.style.marginLeft='8px'; rej.textContent='Reject'; rej.onclick=()=>{ l.status='Rejected'; saveData(); pushNotification({title:'Leave Rejected', message:`${l.name}'s leave rejected`, level:'warn', targetRoles:['all']}); renderAttendanceManagement(); refreshRecent(); }; td.appendChild(appr); td.appendChild(rej); } lbody.appendChild(tr); }); lt.appendChild(lbody); leavesCard.appendChild(lt); }
+  mainContent.appendChild(leavesCard); refreshRecent();
+}
+
+/* Employee marks present (one-time per day) */
+function markPresentAndNotify(empId, name){ const key = empId+'_'+todayKey(); if(DATA.attendance[key]) return; DATA.attendance[key] = {employeeId:empId,name, date:todayKey(), status:'Present', time:new Date().toLocaleTimeString().slice(0,5)}; saveData(); pushNotification({title:'Marked Present', message:`${name} marked present.`, level:'success', targetRoles:['superadmin','admin','hr']}); if(APP.currentUser && APP.currentUser.role === 'employee') showToast({title:'Marked Present', message:'You have been marked present.', level:'success'}); if(isAdminOrHr()) renderAttendanceManagement(); else renderEmployeeHome(); refreshRecent(); }
+
+/* small pages: payroll, reports, settings same as earlier (kept minimal) */
+function renderPayroll(){ if(!isAdminOrHr()) return accessDenied(); currentView='payroll'; pageTitle.textContent='Payroll'; pageSubtitle.textContent=''; mainContent.innerHTML=''; const card=document.createElement('div'); card.className='card'; card.innerHTML='<h3 style="margin-top:0">Payroll</h3>'; const month=document.createElement('input'); month.type='month'; month.className='input'; const run=document.createElement('button'); run.className='btn primary'; run.textContent='Run Payroll'; run.onclick = ()=>{ if(!month.value) return alert('Choose month'); const [y,m]=month.value.split('-'); DATA.employees.forEach(e=>{ const gross=Number(e.baseSalary||0); const deduction=Math.round(gross*0.10); const net=gross-deduction; DATA.payslips.push({id:'p'+Date.now()+Math.random().slice(2,6),employeeId:e.id,name:e.name,month:Number(m),year:Number(y),gross,deduction,net}); }); saveData(); alert('Payroll generated'); renderPayroll(); refreshRecent(); }; card.appendChild(month); card.appendChild(run); mainContent.appendChild(card); }
+function renderReports(){ if(!isAdminOrHr()) return accessDenied(); currentView='reports'; pageTitle.textContent='Reports'; pageSubtitle.textContent=''; mainContent.innerHTML=''; const card=document.createElement('div'); card.className='card'; card.innerHTML='<h3 style="margin-top:0">Reports</h3>'; const expA=document.createElement('button'); expA.className='btn ghost'; expA.textContent='Export Attendance CSV'; expA.onclick=()=>exportAttendanceCSV(); const expL=document.createElement('button'); expL.className='btn ghost'; expL.style.marginLeft='8px'; expL.textContent='Export Leaves CSV'; expL.onclick=()=>exportLeavesCSV(); card.appendChild(expA); card.appendChild(expL); mainContent.appendChild(card); }
+function renderSettings(){ if(!isAdminOrHr()) return accessDenied(); currentView='settings'; pageTitle.textContent='Settings'; pageSubtitle.textContent=''; mainContent.innerHTML=''; const panel=document.createElement('div'); panel.className='card'; panel.innerHTML='<h3 style="margin-top:0">Settings</h3>'; const comp=document.createElement('input'); comp.className='input'; comp.value = DATA.settings.companyName; const cur=document.createElement('input'); cur.className='input'; cur.value = DATA.settings.currency; const ann=document.createElement('textarea'); ann.className='input'; ann.rows=4; ann.value = DATA.announcements || ''; const save=document.createElement('button'); save.className='btn primary'; save.textContent='Save'; save.onclick=()=>{ DATA.settings.companyName=comp.value; DATA.settings.currency=cur.value; DATA.announcements=ann.value; saveData(); alert('Saved'); refreshRecent(); }; panel.appendChild(document.createTextNode('Company name')); panel.appendChild(comp); panel.appendChild(document.createElement('div')); panel.appendChild(document.createTextNode('Currency')); panel.appendChild(cur); panel.appendChild(document.createElement('div')); panel.appendChild(document.createTextNode('Announcements')); panel.appendChild(ann); panel.appendChild(save); mainContent.appendChild(panel); }
+
+/* utilities */
+function makeTile(label,value){ const t=document.createElement('div'); t.className='tile'; t.innerHTML=`<div class="label">${label}</div><div class="value">${value}</div>`; return t; }
+function todayKey(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function getAttendanceForEmployee(empId,date=todayKey()){ return DATA.attendance[empId+'_'+date] || {}; }
+function getEmployeeIdFromUser(user){ if(!user) return null; const byEmail = DATA.employees.find(e => e.email && user.username && e.email.split('@')[0] === user.username); if(byEmail) return byEmail.id; const prefix = user.displayName.split(' ')[0].toLowerCase(); const byName = DATA.employees.find(e => e.name && e.name.split(' ')[0].toLowerCase() === prefix); return byName ? byName.id : (DATA.employees.length ? DATA.employees[0].id : null); }
+function accessDenied(){ mainContent.innerHTML=''; const c=document.createElement('div'); c.className='card'; c.innerHTML = '<h3 style="margin-top:0">Access denied</h3><div class="tiny muted">You do not have permission.</div>'; mainContent.appendChild(c); }
+async function confirmAdminPasswordThen(callback){ const requireConfirm = true; if(!requireConfirm){ callback(); return; } const pwd = prompt('Enter your account password to confirm this action:'); if(pwd === null) return; const ph = await hashSHA256(pwd); if(!APP.currentUser || !APP.currentUser.passwordHash) return alert('No account info found.'); if(ph !== APP.currentUser.passwordHash) return alert('Password incorrect. Action canceled.'); callback(); }
+
+/* create login helper used elsewhere (unchanged) */
+async function createUserAccount(username,password,displayName,role='employee'){ if(DATA.users.find(u=>u.username===username)) throw new Error('username exists'); const ph = await hashSHA256(password); const u = {id:'u_'+Date.now(), username, passwordHash:ph, displayName, role}; DATA.users.push(u); saveData(); return u; }
+
+/* export utils */
+function downloadCSV(rows, filename){ const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+function exportEmployeesCSV(){ const rows=[['id','name','email','role','joined','baseSalary','bio']]; DATA.employees.forEach(e=>rows.push([e.id,e.name,e.email||'',e.role||'',e.joined||'',e.baseSalary||0,e.bio||''])); downloadCSV(rows,'employees.csv'); }
+function exportAttendanceCSV(){ const rows=[['employeeId','name','date','status','time']]; Object.values(DATA.attendance).forEach(a=>rows.push([a.employeeId,a.name,a.date,a.status,a.time||''])); downloadCSV(rows,'attendance.csv'); }
+function exportLeavesCSV(){ const rows=[['id','employeeId','name','type','from','to','days','status','appliedOn']]; DATA.leaves.forEach(l=>rows.push([l.id,l.employeeId,l.name,l.type,l.from,l.to,l.days,l.status,l.appliedOn])); downloadCSV(rows,'leaves.csv'); }
+
+/* recent */
+function refreshRecent(){ recentWrap.innerHTML=''; annText.textContent = DATA.announcements || 'No announcements'; const att = Object.values(DATA.attendance).slice().reverse().slice(0,6).map(a=>({t:'Attendance',txt:`${a.name} — ${a.status} ${a.time||''}`})); const leaves = DATA.leaves.slice().reverse().slice(0,6).map(l=>({t:'Leave',txt:`${l.name} — ${l.type} (${l.status})`})); const pays = DATA.payslips.slice().reverse().slice(0,4).map(p=>({t:'Payslip',txt:`${p.name} — ${DATA.settings.currency}${p.net}`})); const items = att.concat(leaves).concat(pays).slice(0,8); items.forEach(it=>{ const c=document.createElement('div'); c.style.minWidth='220px'; c.style.padding='12px'; c.style.borderRadius='12px'; c.style.background='linear-gradient(180deg,#fff,#fbfdff)'; c.style.border='1px solid rgba(11,18,32,0.03)'; c.innerHTML = `<div style="font-weight:700">${it.t}</div><div class="tiny" style="margin-top:8px;color:var(--muted)">${it.txt}</div>`; recentWrap.appendChild(c); }); }
+
+/* show pending notifications when login or external update */
+function showPendingNotificationsForCurrentUser(){ if(!APP.currentUser || !DATA.notifications) return; const recent = DATA.notifications.slice().reverse().filter(n=>matchesCurrentUserRole(n.targetRoles)).slice(0,5); recent.forEach(n=>showToast(n)); }
+
+/* mark present called by employee button */
+function markPresentAndNotify(empId, name){ const key = empId+'_'+todayKey(); if(DATA.attendance[key]) return; DATA.attendance[key] = {employeeId:empId,name,date:todayKey(),status:'Present',time:new Date().toLocaleTimeString().slice(0,5)}; saveData(); pushNotification({title:'Marked Present', message:`${name} marked present.`, level:'success', targetRoles:['superadmin','admin','hr']}); if(APP.currentUser && APP.currentUser.role === 'employee') showToast({title:'Marked Present', message:'You have been marked present.', level:'success'}); if(isAdminOrHr()) renderAttendanceManagement(); else renderEmployeeHome(); refreshRecent(); }
+
+/* sign out */
+sideSignOut.onclick = ()=>{ if(confirm('Sign out?')){ APP.currentUser = null; app.style.display='none'; loginWrap.style.display='flex'; loginUser.value=''; loginPass.value=''; } };
+exportCSVs.onclick = ()=>{ exportEmployeesCSV(); exportAttendanceCSV(); exportLeavesCSV(); alert('Exported CSVs'); };
+if(exportAll) exportAll.onclick = ()=>exportEmployeesCSV();
+
+/* expose for debugging */
+window.MAFS = { DATA, saveData, createUserAccount };
+
+/* initial UI remains driven by first-run and login handlers above */
+</script>
+</body>
+</html>
