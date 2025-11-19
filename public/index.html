@@ -261,19 +261,34 @@ async function syncToFirestoreInBackground(localData){
       const docSnap = await getDoc(dataDoc);
       
       if(docSnap.exists()){
-        // Firestore has data - merge if needed (Firestore wins for conflicts)
+        // Firestore has data - compare with local data
         const firestoreData = docSnap.data();
-        // Update localStorage with Firestore data if it's newer
-        if(firestoreData && Object.keys(firestoreData).length > 0){
+        
+        // Count items in each dataset
+        const localUsersCount = (localData.users && localData.users.length) || 0;
+        const localEmployeesCount = (localData.employees && localData.employees.length) || 0;
+        const firestoreUsersCount = (firestoreData.users && firestoreData.users.length) || 0;
+        const firestoreEmployeesCount = (firestoreData.employees && firestoreData.employees.length) || 0;
+        
+        // Only use Firestore data if it has MORE content (likely newer)
+        const localTotal = localUsersCount + localEmployeesCount;
+        const firestoreTotal = firestoreUsersCount + firestoreEmployeesCount;
+        
+        if(firestoreTotal > localTotal && firestoreData && Object.keys(firestoreData).length > 0){
+          // Firestore has more data - use it
           localStorage.setItem(STORAGE_KEY, JSON.stringify(firestoreData));
-          // Update DATA if it exists
           if(typeof DATA !== 'undefined' && DATA){
             Object.assign(DATA, firestoreData);
           }
+        } else if(localTotal > 0) {
+          // Local has data - upload to Firestore (local wins)
+          await setDoc(dataDoc, localData, { merge: false });
         }
       } else {
-        // No Firestore data - upload local data
-        await setDoc(dataDoc, localData, { merge: false });
+        // No Firestore data - upload local data if it has content
+        if(localData && ((localData.users && localData.users.length > 0) || (localData.employees && localData.employees.length > 0))){
+          await setDoc(dataDoc, localData, { merge: false });
+        }
       }
     } catch(e){
       // Silently fail - Firestore sync is optional
@@ -299,14 +314,24 @@ async function saveDataToFirestore(data){
 }
 
 // Save data function (saves to both Firestore and localStorage)
-async function saveData(){
+async function saveData(waitForFirestore = false){
   // Save to localStorage immediately (fast, local backup)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
   
-  // Save to Firestore in background (non-blocking)
-  saveDataToFirestore(DATA).catch(e => {
-    console.warn('Firestore save failed (non-critical):', e.message);
-  });
+  // Save to Firestore
+  if(waitForFirestore){
+    // Wait for Firestore if explicitly requested (for critical saves)
+    try {
+      await saveDataToFirestore(DATA);
+    } catch(e) {
+      console.warn('Firestore save failed (non-critical):', e.message);
+    }
+  } else {
+    // Save to Firestore in background (non-blocking)
+    saveDataToFirestore(DATA).catch(e => {
+      console.warn('Firestore save failed (non-critical):', e.message);
+    });
+  }
   
   broadcastChange();
 }
@@ -759,7 +784,7 @@ function renderLeaveApply(){ currentView='leaveApply'; pageTitle.textContent='Ap
 */
 function renderEmployeeManagement(){ currentView='employeeManagement'; if(!isAdminOrHr()) return accessDenied(); pageTitle.textContent='Employee Management'; pageSubtitle.textContent='Create employee records & login accounts'; mainContent.innerHTML=''; const panel=document.createElement('div'); panel.className='card'; panel.innerHTML = '<h3 style="margin-top:0">Employees</h3>'; const actionRow=document.createElement('div'); actionRow.style.display='flex'; actionRow.style.justifyContent='space-between'; actionRow.style.marginTop='10px'; const left=document.createElement('div'); const addBtn=document.createElement('button'); addBtn.className='btn primary'; addBtn.textContent='Add Employee'; addBtn.onclick = ()=>renderEmployeeAddForm(); left.appendChild(addBtn); actionRow.appendChild(left); const search=document.createElement('input'); search.className='input'; search.placeholder='Filter by name/email...'; search.style.width='320px'; search.oninput = ()=>renderEmployeeTable(panel, search.value.trim()); actionRow.appendChild(search); panel.appendChild(actionRow); renderEmployeeTable(panel, ''); mainContent.appendChild(panel); }
 
-function renderEmployeeTable(container, filter){ const prev=container.querySelector('table'); if(prev) prev.remove(); const table=document.createElement('table'); table.className='table'; table.innerHTML='<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Salary</th><th>Actions</th></tr></thead>'; const tbody=document.createElement('tbody'); DATA.employees.filter(e=>{ if(!filter) return true; return (e.name && e.name.toLowerCase().includes(filter.toLowerCase())) || (e.email && e.email.toLowerCase().includes(filter.toLowerCase())); }).forEach(e=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${e.name}</td><td>${e.email||''}</td><td>${e.role||''}</td><td>${e.joined||''}</td><td>${DATA.settings.currency}${e.baseSalary||0}</td><td></td>`; const td=tr.querySelector('td:last-child'); const edit=document.createElement('button'); edit.className='btn ghost'; edit.textContent='Edit'; edit.onclick = ()=>confirmAdminPasswordThen(()=>renderEmployeeEditForm(e.id)); td.appendChild(edit); const hasLogin = hasLoginForEmployee(e); if(!hasLogin){ const createLogin=document.createElement('button'); createLogin.className='btn primary'; createLogin.style.marginLeft='8px'; createLogin.textContent='Create Login'; createLogin.onclick = ()=>renderCreateLoginForEmployee(e.id); td.appendChild(createLogin); } else { // only show a small label that login exists
+function renderEmployeeTable(container, filter){ const prev=container.querySelector('table'); if(prev) prev.remove(); const table=document.createElement('table'); table.className='table'; table.innerHTML='<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Salary</th><th>Actions</th></tr></thead>'; const tbody=document.createElement('tbody'); if(!DATA || !DATA.employees) return; DATA.employees.filter(e=>{ if(!filter) return true; return (e.name && e.name.toLowerCase().includes(filter.toLowerCase())) || (e.email && e.email.toLowerCase().includes(filter.toLowerCase())); }).forEach(e=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${e.name}</td><td>${e.email||''}</td><td>${e.role||''}</td><td>${e.joined||''}</td><td>${DATA.settings.currency}${e.baseSalary||0}</td><td></td>`; const td=tr.querySelector('td:last-child'); const edit=document.createElement('button'); edit.className='btn ghost'; edit.textContent='Edit'; edit.onclick = ()=>confirmAdminPasswordThen(()=>renderEmployeeEditForm(e.id)); td.appendChild(edit); const hasLogin = hasLoginForEmployee(e); if(!hasLogin){ const createLogin=document.createElement('button'); createLogin.className='btn primary'; createLogin.style.marginLeft='8px'; createLogin.textContent='Create Login'; createLogin.onclick = ()=>renderCreateLoginForEmployee(e.id); td.appendChild(createLogin); } else { // only show a small label that login exists
     const lbl = document.createElement('div'); lbl.className='tiny'; lbl.style.display='inline-block'; lbl.style.marginLeft='8px'; lbl.textContent='Login exists'; td.appendChild(lbl);
   } const del=document.createElement('button'); del.className='btn ghost'; del.style.marginLeft='8px'; del.textContent='Delete'; del.onclick = ()=>confirmAdminPasswordThen(()=>{ if(confirm('Delete employee & associated login?')){ DATA.employees = DATA.employees.filter(x=>x.id!==e.id); // remove any user with matching displayName or email prefix
     const uname = e.email ? e.email.split('@')[0] : null; if(uname) DATA.users = DATA.users.filter(u=>u.username !== uname); saveData(); renderEmployeeManagement(); } }); td.appendChild(del); tbody.appendChild(tr); }); table.appendChild(tbody); container.appendChild(table); }
@@ -778,7 +803,7 @@ function hasLoginForEmployee(emp){
 }
 
 /* add employee (same as before) */
-function renderEmployeeAddForm(){ currentView='employeeAdd'; pageTitle.textContent='Add Employee'; pageSubtitle.textContent=''; mainContent.innerHTML=''; const panel=document.createElement('div'); panel.className='card'; panel.innerHTML='<h3 style="margin-top:0">Create Employee Record</h3>'; const form=document.createElement('div'); form.style.display='grid'; form.style.gap='8px'; const name=document.createElement('input'); name.className='input'; name.placeholder='Full name'; const email=document.createElement('input'); email.className='input'; email.placeholder='Email'; const role=document.createElement('input'); role.className='input'; role.placeholder='Role'; const salary=document.createElement('input'); salary.className='input'; salary.type='number'; salary.placeholder='Base salary'; const bio=document.createElement('textarea'); bio.className='input'; bio.rows=3; bio.placeholder='Short bio'; const photo=document.createElement('input'); photo.type='file'; photo.accept='image/*'; const submit=document.createElement('button'); submit.className='btn primary'; submit.textContent='Create Employee'; submit.onclick = ()=>{ if(!name.value) return alert('Name required'); const id='e'+Date.now(); if(photo.files && photo.files[0]){ const r=new FileReader(); r.onload=()=>{ DATA.employees.push({id,name:name.value.trim(),email:email.value.trim(),role:role.value.trim()||'employee',joined:new Date().toISOString().split('T')[0],baseSalary:Number(salary.value||0),bio:bio.value||'',photo:r.result}); saveData(); alert('Employee created'); renderEmployeeManagement(); }; r.readAsDataURL(photo.files[0]); } else { DATA.employees.push({id,name:name.value.trim(),email:email.value.trim(),role:role.value.trim()||'employee',joined:new Date().toISOString().split('T')[0],baseSalary:Number(salary.value||0),bio:bio.value||'',photo:null}); saveData(); alert('Employee created'); renderEmployeeManagement(); } }; form.appendChild(name); form.appendChild(email); form.appendChild(role); form.appendChild(salary); form.appendChild(bio); form.appendChild(photo); form.appendChild(submit); panel.appendChild(form); mainContent.appendChild(panel); }
+function renderEmployeeAddForm(){ currentView='employeeAdd'; pageTitle.textContent='Add Employee'; pageSubtitle.textContent=''; mainContent.innerHTML=''; const panel=document.createElement('div'); panel.className='card'; panel.innerHTML='<h3 style="margin-top:0">Create Employee Record</h3>'; const form=document.createElement('div'); form.style.display='grid'; form.style.gap='8px'; const name=document.createElement('input'); name.className='input'; name.placeholder='Full name'; const email=document.createElement('input'); email.className='input'; email.placeholder='Email'; const role=document.createElement('input'); role.className='input'; role.placeholder='Role'; const salary=document.createElement('input'); salary.className='input'; salary.type='number'; salary.placeholder='Base salary'; const bio=document.createElement('textarea'); bio.className='input'; bio.rows=3; bio.placeholder='Short bio'; const photo=document.createElement('input'); photo.type='file'; photo.accept='image/*'; const submit=document.createElement('button'); submit.className='btn primary'; submit.textContent='Create Employee'; submit.onclick = async ()=>{ if(!name.value) return alert('Name required'); const id='e'+Date.now(); if(!DATA || !DATA.employees) DATA = await loadData(false); if(photo.files && photo.files[0]){ const r=new FileReader(); r.onload=async ()=>{ DATA.employees.push({id,name:name.value.trim(),email:email.value.trim(),role:role.value.trim()||'employee',joined:new Date().toISOString().split('T')[0],baseSalary:Number(salary.value||0),bio:bio.value||'',photo:r.result}); await saveData(true); // Wait for save DATA = await loadData(false); // Reload fresh data alert('Employee created'); renderEmployeeManagement(); }; r.readAsDataURL(photo.files[0]); } else { DATA.employees.push({id,name:name.value.trim(),email:email.value.trim(),role:role.value.trim()||'employee',joined:new Date().toISOString().split('T')[0],baseSalary:Number(salary.value||0),bio:bio.value||'',photo:null}); await saveData(true); // Wait for save DATA = await loadData(false); // Reload fresh data alert('Employee created'); renderEmployeeManagement(); } }; form.appendChild(name); form.appendChild(email); form.appendChild(role); form.appendChild(salary); form.appendChild(bio); form.appendChild(photo); form.appendChild(submit); panel.appendChild(form); mainContent.appendChild(panel); }
 
 /* edit employee (admin confirmation) */
 function renderEmployeeEditForm(empId){ currentView='employeeEdit'; if(!isAdminOrHr()) return accessDenied(); pageTitle.textContent='Edit Employee'; pageSubtitle.textContent=''; mainContent.innerHTML=''; const emp = DATA.employees.find(e=>e.id===empId); if(!emp) return alert('Employee not found'); const panel=document.createElement('div'); panel.className='card'; panel.innerHTML = `<h3 style="margin-top:0">Edit ${emp.name}</h3>`; const form=document.createElement('div'); form.style.display='grid'; form.style.gap='8px'; const name=document.createElement('input'); name.className='input'; name.value = emp.name; const email=document.createElement('input'); email.className='input'; email.value = emp.email || ''; const role=document.createElement('input'); role.className='input'; role.value = emp.role || ''; const salary=document.createElement('input'); salary.className='input'; salary.type='number'; salary.value = emp.baseSalary || 0; const bio=document.createElement('textarea'); bio.className='input'; bio.rows=3; bio.value = emp.bio || ''; const photo=document.createElement('input'); photo.type='file'; photo.accept='image/*'; const saveBtn=document.createElement('button'); saveBtn.className='btn primary'; saveBtn.textContent='Save Changes'; saveBtn.onclick = ()=>confirmAdminPasswordThen(()=>{ emp.name = name.value.trim(); emp.email = email.value.trim(); emp.role = role.value.trim(); emp.baseSalary = Number(salary.value||0); emp.bio = bio.value; if(photo.files && photo.files[0]){ const r=new FileReader(); r.onload=()=>{ emp.photo = r.result; saveData(); alert('Saved'); renderEmployeeManagement(); }; r.readAsDataURL(photo.files[0]); } else { saveData(); alert('Saved'); renderEmployeeManagement(); } }); form.appendChild(name); form.appendChild(email); form.appendChild(role); form.appendChild(salary); form.appendChild(bio); form.appendChild(photo); form.appendChild(saveBtn); panel.appendChild(form); mainContent.appendChild(panel); }
