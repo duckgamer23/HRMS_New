@@ -269,29 +269,68 @@ async function testFirestoreConnection(){
   }
 }
 
-// Load data from localStorage first (fast), then sync with Firestore in background
+// Load data - Check Firestore FIRST on new devices, then localStorage for speed
 async function loadData(syncFirestore = true){
-  // Load from localStorage first (instant, no network delay)
+  const db = await checkFirestore();
+  const init={users:[],employees:[],attendance:{},leaves:[],payslips:[],announcements:'',settings:{companyName:'MAFS Studio',currency:'₹'},notifications:[]};
+  
+  // If Firestore is available, try loading from there FIRST (for multi-device sync)
+  if(db && syncFirestore){
+    try {
+      const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js");
+      const dataDoc = doc(db, 'hrms_data', FIRESTORE_DOC_ID);
+      const docSnap = await getDoc(dataDoc);
+      
+      if(docSnap.exists()){
+        const firestoreData = docSnap.data();
+        console.log('✅ Loaded data from Firestore (cloud)');
+        // Save to localStorage for faster future loads
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(firestoreData));
+        return firestoreData;
+      } else {
+        console.log('📝 No data in Firestore yet - will create on first save');
+      }
+    } catch(e){
+      console.error('❌ Firestore load error:', e);
+      console.error('Error code:', e.code);
+      if(e.code === 'permission-denied'){
+        console.error('⚠️ PERMISSION DENIED - Update Firestore security rules!');
+      }
+      // Continue to localStorage fallback
+    }
+  }
+  
+  // Fallback to localStorage (fast, local cache)
   const raw = localStorage.getItem(STORAGE_KEY);
   if(!raw){
-    const init={users:[],employees:[],attendance:{},leaves:[],payslips:[],announcements:'',settings:{companyName:'MAFS Studio',currency:'₹'},notifications:[]};
+    console.log('📝 No local data found - initializing fresh database');
     localStorage.setItem(STORAGE_KEY,JSON.stringify(init));
-    // Sync to Firestore in background (non-blocking)
-    if(syncFirestore) syncToFirestoreInBackground(init);
+    // Try to save initial empty structure to Firestore if available
+    if(db && syncFirestore) {
+      try {
+        const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js");
+        const dataDoc = doc(db, 'hrms_data', FIRESTORE_DOC_ID);
+        await setDoc(dataDoc, init, { merge: false });
+        console.log('✅ Initialized empty database in Firestore');
+      } catch(e){
+        console.warn('⚠️ Could not initialize Firestore:', e.message);
+      }
+    }
     return init;
   }
   
   let localData;
   try{
     localData = JSON.parse(raw);
+    console.log('✅ Loaded data from localStorage');
   } catch(e){
-    console.error('storage parse',e);
+    console.error('storage parse error',e);
     localStorage.removeItem(STORAGE_KEY);
     return loadData(syncFirestore);
   }
   
-  // Sync with Firestore in background (non-blocking)
-  if(syncFirestore) syncToFirestoreInBackground(localData);
+  // Sync with Firestore in background (merge/update)
+  if(syncFirestore && db) syncToFirestoreInBackground(localData);
   
   return localData;
 }
@@ -378,33 +417,44 @@ async function saveDataToFirestore(data){
 
 // Save data function (saves to both Firestore and localStorage)
 async function saveData(waitForFirestore = false){
+  // Ensure DATA exists
+  if(!DATA){
+    console.error('❌ Cannot save - DATA is null or undefined');
+    DATA = await loadData(false);
+  }
+  
   // Save to localStorage immediately (fast, local backup)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
   console.log('💾 Saved to localStorage');
   
-  // Save to Firestore
+  // ALWAYS save to Firestore (critical for multi-device sync)
   if(waitForFirestore){
     // Wait for Firestore if explicitly requested (for critical saves)
-    console.log('⏳ Saving to Firestore (waiting)...');
+    console.log('⏳ Saving to Firestore (waiting for completion)...');
     try {
       const success = await saveDataToFirestore(DATA);
       if(success){
         console.log('✅ Data saved to Firestore successfully');
       } else {
-        console.warn('⚠️ Firestore save returned false - check console for errors');
+        console.error('❌ Firestore save returned false - data may not sync across devices!');
+        console.error('⚠️ Check browser console for detailed error messages');
       }
     } catch(e) {
       console.error('❌ Firestore save failed:', e.message);
+      console.error('Error code:', e.code);
     }
   } else {
-    // Save to Firestore in background (non-blocking)
-    console.log('⏳ Saving to Firestore (background)...');
+    // Save to Firestore in background (non-blocking but important)
+    console.log('⏳ Saving to Firestore (background sync)...');
     saveDataToFirestore(DATA).then(success => {
       if(success){
-        console.log('✅ Data saved to Firestore successfully (background)');
+        console.log('✅ Data saved to Firestore successfully (cloud sync complete)');
+      } else {
+        console.warn('⚠️ Firestore save failed in background - data only saved locally');
       }
     }).catch(e => {
       console.error('❌ Firestore save failed (background):', e.message);
+      console.error('Error code:', e.code);
     });
   }
   
@@ -886,7 +936,7 @@ function hasLoginForEmployee(emp){
 }
 
 /* add employee (same as before) */
-function renderEmployeeAddForm(){ currentView='employeeAdd'; pageTitle.textContent='Add Employee'; pageSubtitle.textContent=''; mainContent.innerHTML=''; const panel=document.createElement('div'); panel.className='card'; panel.innerHTML='<h3 style="margin-top:0">Create Employee Record</h3>'; const form=document.createElement('div'); form.style.display='grid'; form.style.gap='8px'; const name=document.createElement('input'); name.className='input'; name.placeholder='Full name'; const email=document.createElement('input'); email.className='input'; email.placeholder='Email'; const role=document.createElement('input'); role.className='input'; role.placeholder='Role'; const salary=document.createElement('input'); salary.className='input'; salary.type='number'; salary.placeholder='Base salary'; const bio=document.createElement('textarea'); bio.className='input'; bio.rows=3; bio.placeholder='Short bio'; const photo=document.createElement('input'); photo.type='file'; photo.accept='image/*'; const submit=document.createElement('button'); submit.className='btn primary'; submit.textContent='Create Employee'; submit.onclick = async ()=>{ if(!name.value) return alert('Name required'); const id='e'+Date.now(); if(!DATA || !DATA.employees) DATA = await loadData(false); if(photo.files && photo.files[0]){ const r=new FileReader(); r.onload=async ()=>{ DATA.employees.push({id,name:name.value.trim(),email:email.value.trim(),role:role.value.trim()||'employee',joined:new Date().toISOString().split('T')[0],baseSalary:Number(salary.value||0),bio:bio.value||'',photo:r.result}); await saveData(true); // Wait for save DATA = await loadData(false); // Reload fresh data alert('Employee created'); renderEmployeeManagement(); }; r.readAsDataURL(photo.files[0]); } else { DATA.employees.push({id,name:name.value.trim(),email:email.value.trim(),role:role.value.trim()||'employee',joined:new Date().toISOString().split('T')[0],baseSalary:Number(salary.value||0),bio:bio.value||'',photo:null}); await saveData(true); // Wait for save DATA = await loadData(false); // Reload fresh data alert('Employee created'); renderEmployeeManagement(); } }; form.appendChild(name); form.appendChild(email); form.appendChild(role); form.appendChild(salary); form.appendChild(bio); form.appendChild(photo); form.appendChild(submit); panel.appendChild(form); mainContent.appendChild(panel); }
+function renderEmployeeAddForm(){ currentView='employeeAdd'; pageTitle.textContent='Add Employee'; pageSubtitle.textContent=''; mainContent.innerHTML=''; const panel=document.createElement('div'); panel.className='card'; panel.innerHTML='<h3 style="margin-top:0">Create Employee Record</h3>'; const form=document.createElement('div'); form.style.display='grid'; form.style.gap='8px'; const name=document.createElement('input'); name.className='input'; name.placeholder='Full name'; const email=document.createElement('input'); email.className='input'; email.placeholder='Email'; const role=document.createElement('input'); role.className='input'; role.placeholder='Role'; const salary=document.createElement('input'); salary.className='input'; salary.type='number'; salary.placeholder='Base salary'; const bio=document.createElement('textarea'); bio.className='input'; bio.rows=3; bio.placeholder='Short bio'; const photo=document.createElement('input'); photo.type='file'; photo.accept='image/*'; const submit=document.createElement('button'); submit.className='btn primary'; submit.textContent='Create Employee'; submit.onclick = async ()=>{ if(!name.value) return alert('Name required'); const id='e'+Date.now(); if(!DATA || !DATA.employees) DATA = await loadData(true); // Reload from Firestore first if(photo.files && photo.files[0]){ const r=new FileReader(); r.onload=async ()=>{ DATA.employees.push({id,name:name.value.trim(),email:email.value.trim(),role:role.value.trim()||'employee',joined:new Date().toISOString().split('T')[0],baseSalary:Number(salary.value||0),bio:bio.value||'',photo:r.result}); await saveData(true); // Wait for Firestore save DATA = await loadData(true); // Reload from Firestore alert('Employee created and saved to cloud!'); renderEmployeeManagement(); }; r.readAsDataURL(photo.files[0]); } else { DATA.employees.push({id,name:name.value.trim(),email:email.value.trim(),role:role.value.trim()||'employee',joined:new Date().toISOString().split('T')[0],baseSalary:Number(salary.value||0),bio:bio.value||'',photo:null}); await saveData(true); // Wait for Firestore save DATA = await loadData(true); // Reload from Firestore alert('Employee created and saved to cloud!'); renderEmployeeManagement(); } }; form.appendChild(name); form.appendChild(email); form.appendChild(role); form.appendChild(salary); form.appendChild(bio); form.appendChild(photo); form.appendChild(submit); panel.appendChild(form); mainContent.appendChild(panel); }
 
 /* edit employee (admin confirmation) */
 function renderEmployeeEditForm(empId){ currentView='employeeEdit'; if(!isAdminOrHr()) return accessDenied(); pageTitle.textContent='Edit Employee'; pageSubtitle.textContent=''; mainContent.innerHTML=''; const emp = DATA.employees.find(e=>e.id===empId); if(!emp) return alert('Employee not found'); const panel=document.createElement('div'); panel.className='card'; panel.innerHTML = `<h3 style="margin-top:0">Edit ${emp.name}</h3>`; const form=document.createElement('div'); form.style.display='grid'; form.style.gap='8px'; const name=document.createElement('input'); name.className='input'; name.value = emp.name; const email=document.createElement('input'); email.className='input'; email.value = emp.email || ''; const role=document.createElement('input'); role.className='input'; role.value = emp.role || ''; const salary=document.createElement('input'); salary.className='input'; salary.type='number'; salary.value = emp.baseSalary || 0; const bio=document.createElement('textarea'); bio.className='input'; bio.rows=3; bio.value = emp.bio || ''; const photo=document.createElement('input'); photo.type='file'; photo.accept='image/*'; const saveBtn=document.createElement('button'); saveBtn.className='btn primary'; saveBtn.textContent='Save Changes'; saveBtn.onclick = ()=>confirmAdminPasswordThen(()=>{ emp.name = name.value.trim(); emp.email = email.value.trim(); emp.role = role.value.trim(); emp.baseSalary = Number(salary.value||0); emp.bio = bio.value; if(photo.files && photo.files[0]){ const r=new FileReader(); r.onload=()=>{ emp.photo = r.result; saveData(); alert('Saved'); renderEmployeeManagement(); }; r.readAsDataURL(photo.files[0]); } else { saveData(); alert('Saved'); renderEmployeeManagement(); } }); form.appendChild(name); form.appendChild(email); form.appendChild(role); form.appendChild(salary); form.appendChild(bio); form.appendChild(photo); form.appendChild(saveBtn); panel.appendChild(form); mainContent.appendChild(panel); }
