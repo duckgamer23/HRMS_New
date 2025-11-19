@@ -204,33 +204,45 @@ async function createDefaultAccounts(){
   // Reload DATA first to get latest state
   DATA = loadData();
   
+  console.log('🔍 Checking for existing accounts...');
+  console.log('Current users count:', DATA.users ? DATA.users.length : 0);
+  
   if(DATA.users && DATA.users.length > 0) {
-    console.log('✅ Accounts already exist, skipping creation.');
+    console.log('✅ Accounts already exist:');
+    DATA.users.forEach(u => console.log(`  - ${u.username} (${u.role})`));
     return; // Accounts already exist
   }
   
   try {
-    console.log('🔄 Creating default accounts...');
+    console.log('🔄 No accounts found. Creating default accounts...');
     
     // Create Super-Admin with your credentials
-    await createUserAccount('kalaipraveendc@gmail.com', '49045028p@', 'Super Admin', 'superadmin');
+    console.log('Creating Super-Admin account...');
+    const superAdmin = await createUserAccount('kalaipraveendc@gmail.com', '49045028p@', 'Super Admin', 'superadmin');
+    console.log('✅ Super-Admin created:', superAdmin.username);
     
     // Create Admin
-    await createUserAccount('admin', 'admin123', 'Admin User', 'admin');
+    console.log('Creating Admin account...');
+    const admin = await createUserAccount('admin', 'admin123', 'Admin User', 'admin');
+    console.log('✅ Admin created:', admin.username);
     
     // Create Employee
-    await createUserAccount('employee', 'emp123', 'Employee User', 'employee');
+    console.log('Creating Employee account...');
+    const employee = await createUserAccount('employee', 'emp123', 'Employee User', 'employee');
+    console.log('✅ Employee created:', employee.username);
     
     // Reload DATA after creating accounts
     DATA = loadData();
     
     console.log('✅ Default accounts created successfully!');
+    console.log('📋 Total accounts now:', DATA.users.length);
     console.log('📋 Login Credentials:');
     console.log('Super-Admin: username="kalaipraveendc@gmail.com", password="49045028p@"');
     console.log('Admin: username="admin", password="admin123"');
     console.log('Employee: username="employee", password="emp123"');
   } catch(e) {
     console.error('❌ Error creating default accounts:', e);
+    console.error('Error details:', e.message);
     // Reload DATA even on error to ensure consistency
     DATA = loadData();
   }
@@ -258,13 +270,44 @@ async function init(){
   loginBtn.onclick = async ()=>{ 
     loginMsg.textContent=''; 
     DATA = loadData(); // Reload DATA before login check
+    
+    console.log('🔐 Login attempt');
+    console.log('📊 Total users in system:', DATA.users ? DATA.users.length : 0);
+    if(DATA.users && DATA.users.length > 0) {
+      console.log('👥 Available users:', DATA.users.map(u => u.username));
+    }
+    
     const u = loginUser.value.trim(); 
     const p = loginPass.value; 
-    if(!u||!p){ loginMsg.textContent='Enter username & password'; return;} 
+    
+    console.log('📝 Entered username:', u);
+    
+    if(!u||!p){ 
+      loginMsg.textContent='Enter username & password'; 
+      return;
+    } 
+    
     const user = DATA.users.find(x=>x.username===u); 
-    if(!user){ loginMsg.textContent='Invalid credentials'; return;} 
+    if(!user){ 
+      console.error('❌ User not found:', u);
+      loginMsg.textContent='Invalid credentials'; 
+      return;
+    } 
+    
+    console.log('✅ User found:', user.username, 'Role:', user.role);
+    
     const ph = await hashSHA256(p); 
-    if(ph !== user.passwordHash){ loginMsg.textContent='Invalid credentials'; return;} 
+    console.log('🔑 Password hash comparison:');
+    console.log('  Entered hash:', ph);
+    console.log('  Stored hash:', user.passwordHash);
+    
+    if(ph !== user.passwordHash){ 
+      console.error('❌ Password hash mismatch');
+      loginMsg.textContent='Invalid credentials'; 
+      return;
+    } 
+    
+    console.log('✅ Login successful!');
     APP.currentUser = {...user}; 
     afterLogin(); 
   };
@@ -405,12 +448,30 @@ async function createTestAccount(username = 'admin', password = 'admin123', disp
   }
 }
 
+/* Helper to check and list all accounts */
+function checkAccounts(){
+  DATA = loadData();
+  console.log('📊 Current accounts in system:');
+  if(!DATA.users || DATA.users.length === 0){
+    console.log('❌ No accounts found!');
+    console.log('💡 Run: await MAFS.createDefaultAccounts() to create default accounts');
+    return;
+  }
+  DATA.users.forEach((u, i) => {
+    console.log(`${i+1}. Username: ${u.username}`);
+    console.log(`   Role: ${u.role}`);
+    console.log(`   Display Name: ${u.displayName}`);
+  });
+}
+
 /* expose for debugging */
 window.MAFS = { 
   DATA, 
   saveData, 
   createUserAccount,
   createTestAccount,
+  createDefaultAccounts,
+  checkAccounts,
   // Quick helpers
   createAdmin: async (username, password, displayName) => await createTestAccount(username, password, displayName, 'admin'),
   createSuperAdmin: async (username, password, displayName) => await createTestAccount(username, password, displayName, 'superadmin'),
