@@ -201,9 +201,17 @@ function showPendingNotificationsForCurrentUser(){ if(!APP.currentUser || !DATA.
 
 /* Auto-create default accounts on first load */
 async function createDefaultAccounts(){
-  if(DATA.users && DATA.users.length > 0) return; // Accounts already exist
+  // Reload DATA first to get latest state
+  DATA = loadData();
+  
+  if(DATA.users && DATA.users.length > 0) {
+    console.log('✅ Accounts already exist, skipping creation.');
+    return; // Accounts already exist
+  }
   
   try {
+    console.log('🔄 Creating default accounts...');
+    
     // Create Super-Admin with your credentials
     await createUserAccount('kalaipraveendc@gmail.com', '49045028p@', 'Super Admin', 'superadmin');
     
@@ -213,13 +221,18 @@ async function createDefaultAccounts(){
     // Create Employee
     await createUserAccount('employee', 'emp123', 'Employee User', 'employee');
     
-    console.log('✅ Default accounts created!');
+    // Reload DATA after creating accounts
+    DATA = loadData();
+    
+    console.log('✅ Default accounts created successfully!');
     console.log('📋 Login Credentials:');
     console.log('Super-Admin: username="kalaipraveendc@gmail.com", password="49045028p@"');
     console.log('Admin: username="admin", password="admin123"');
     console.log('Employee: username="employee", password="emp123"');
   } catch(e) {
-    console.error('Error creating default accounts:', e);
+    console.error('❌ Error creating default accounts:', e);
+    // Reload DATA even on error to ensure consistency
+    DATA = loadData();
   }
 }
 
@@ -228,13 +241,33 @@ async function init(){
   // Auto-create default accounts if none exist
   await createDefaultAccounts();
   
+  // Reload DATA one more time to ensure we have latest state
+  DATA = loadData();
+  
   if(!DATA.users || DATA.users.length === 0){
     firstRunNote.style.display = 'block';
     createSuperBtn.style.display = 'inline-block';
     loginBtn.style.display = 'none';
-    createSuperBtn.onclick = async ()=>{ const u = loginUser.value.trim(); const p = loginPass.value; if(!u||!p){ loginMsg.textContent='Enter username & password'; return; } const ph = await hashSHA256(p); DATA.users.push({id:'u_'+Date.now(), username:u, passwordHash:ph, displayName:u, role:'superadmin'}); saveData(); loginMsg.style.color='green'; loginMsg.textContent='Super-Admin created. Sign in.'; createSuperBtn.style.display='none'; loginBtn.style.display='inline-block'; firstRunNote.style.display='none'; };
-  } else { firstRunNote.style.display='none'; createSuperBtn.style.display='none'; loginBtn.style.display='inline-block'; }
-  loginBtn.onclick = async ()=>{ loginMsg.textContent=''; const u = loginUser.value.trim(); const p = loginPass.value; if(!u||!p){ loginMsg.textContent='Enter username & password'; return;} const user = DATA.users.find(x=>x.username===u); if(!user){ loginMsg.textContent='Invalid credentials'; return;} const ph = await hashSHA256(p); if(ph !== user.passwordHash){ loginMsg.textContent='Invalid credentials'; return;} APP.currentUser = {...user}; afterLogin(); };
+    createSuperBtn.onclick = async ()=>{ const u = loginUser.value.trim(); const p = loginPass.value; if(!u||!p){ loginMsg.textContent='Enter username & password'; return; } const ph = await hashSHA256(p); DATA.users.push({id:'u_'+Date.now(), username:u, passwordHash:ph, displayName:u, role:'superadmin'}); saveData(); DATA = loadData(); loginMsg.style.color='green'; loginMsg.textContent='Super-Admin created. Sign in.'; createSuperBtn.style.display='none'; loginBtn.style.display='inline-block'; firstRunNote.style.display='none'; };
+  } else { 
+    firstRunNote.style.display='none'; 
+    createSuperBtn.style.display='none'; 
+    loginBtn.style.display='inline-block'; 
+  }
+  
+  loginBtn.onclick = async ()=>{ 
+    loginMsg.textContent=''; 
+    DATA = loadData(); // Reload DATA before login check
+    const u = loginUser.value.trim(); 
+    const p = loginPass.value; 
+    if(!u||!p){ loginMsg.textContent='Enter username & password'; return;} 
+    const user = DATA.users.find(x=>x.username===u); 
+    if(!user){ loginMsg.textContent='Invalid credentials'; return;} 
+    const ph = await hashSHA256(p); 
+    if(ph !== user.passwordHash){ loginMsg.textContent='Invalid credentials'; return;} 
+    APP.currentUser = {...user}; 
+    afterLogin(); 
+  };
 }
 init();
 
