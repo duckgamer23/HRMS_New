@@ -216,9 +216,38 @@ let firestoreUnsubscribe = null;
 // Check if Firestore is available
 function checkFirestore(){
   if(typeof window !== 'undefined' && window.firebaseDb){
+    console.log('✅ Firestore DB is available');
     return window.firebaseDb;
   }
+  console.warn('⚠️ Firestore DB not available - window.firebaseDb is undefined');
   return null;
+}
+
+// Test Firestore connection
+async function testFirestoreConnection(){
+  const db = checkFirestore();
+  if(!db) {
+    console.error('❌ Firestore not initialized');
+    return false;
+  }
+  
+  try {
+    const { doc, getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js");
+    const testDoc = doc(db, 'hrms_data', '__test__');
+    await setDoc(testDoc, { test: true, timestamp: Date.now() });
+    const testSnap = await getDoc(testDoc);
+    if(testSnap.exists()){
+      console.log('✅ Firestore connection test: SUCCESS');
+      return true;
+    }
+    console.error('❌ Firestore connection test: FAILED');
+    return false;
+  } catch(e){
+    console.error('❌ Firestore connection test error:', e);
+    console.error('Error code:', e.code);
+    console.error('Error message:', e.message);
+    return false;
+  }
 }
 
 // Load data from localStorage first (fast), then sync with Firestore in background
@@ -291,8 +320,13 @@ async function syncToFirestoreInBackground(localData){
         }
       }
     } catch(e){
-      // Silently fail - Firestore sync is optional
-      console.warn('Firestore sync failed (non-critical):', e.message);
+      // Log errors for debugging
+      console.error('❌ Firestore sync failed:', e);
+      console.error('Error code:', e.code);
+      console.error('Error message:', e.message);
+      if(e.code === 'permission-denied'){
+        console.error('⚠️ Permission denied - Check Firestore security rules!');
+      }
     }
   })();
 }
@@ -300,15 +334,25 @@ async function syncToFirestoreInBackground(localData){
 // Save data to Firestore (online) - non-blocking
 async function saveDataToFirestore(data){
   const db = checkFirestore();
-  if(!db) return false;
+  if(!db) {
+    console.warn('⚠️ Firestore not available - window.firebaseDb not found');
+    return false;
+  }
   
   try {
     const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js");
     const dataDoc = doc(db, 'hrms_data', FIRESTORE_DOC_ID);
     await setDoc(dataDoc, data, { merge: false });
+    console.log('✅ Data saved to Firestore successfully');
     return true;
   } catch(e){
-    // Silently fail - Firestore is optional
+    console.error('❌ Firestore save error:', e);
+    console.error('Error details:', e.message);
+    console.error('Error code:', e.code);
+    // Show error to user if critical
+    if(typeof showToast === 'function'){
+      showToast({title: 'Firestore Save Failed', message: e.message || 'Could not save to cloud', level: 'warn'});
+    }
     return false;
   }
 }
@@ -317,19 +361,31 @@ async function saveDataToFirestore(data){
 async function saveData(waitForFirestore = false){
   // Save to localStorage immediately (fast, local backup)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
+  console.log('💾 Saved to localStorage');
   
   // Save to Firestore
   if(waitForFirestore){
     // Wait for Firestore if explicitly requested (for critical saves)
+    console.log('⏳ Saving to Firestore (waiting)...');
     try {
-      await saveDataToFirestore(DATA);
+      const success = await saveDataToFirestore(DATA);
+      if(success){
+        console.log('✅ Data saved to Firestore successfully');
+      } else {
+        console.warn('⚠️ Firestore save returned false - check console for errors');
+      }
     } catch(e) {
-      console.warn('Firestore save failed (non-critical):', e.message);
+      console.error('❌ Firestore save failed:', e.message);
     }
   } else {
     // Save to Firestore in background (non-blocking)
-    saveDataToFirestore(DATA).catch(e => {
-      console.warn('Firestore save failed (non-critical):', e.message);
+    console.log('⏳ Saving to Firestore (background)...');
+    saveDataToFirestore(DATA).then(success => {
+      if(success){
+        console.log('✅ Data saved to Firestore successfully (background)');
+      }
+    }).catch(e => {
+      console.error('❌ Firestore save failed (background):', e.message);
     });
   }
   
@@ -373,12 +429,17 @@ let APP = { currentUser: null };
   // Load from localStorage first (instant) - don't wait for Firestore
   DATA = await loadData(false); // false = don't sync Firestore yet
   
+  // Test Firestore connection
+  console.log('🔍 Testing Firestore connection...');
+  await testFirestoreConnection();
+  
   // Initialize the app immediately (fast UI)
   await init();
   
   // Setup Firestore sync in background (non-blocking)
   setupFirestoreListener().catch(e => {
-    console.warn('Firestore listener setup failed (non-critical):', e.message);
+    console.error('❌ Firestore listener setup failed:', e.message);
+    console.error('Error code:', e.code);
   });
   
   // Sync with Firestore in background after UI is shown
@@ -907,6 +968,8 @@ window.MAFS = {
   createTestAccount,
   createDefaultAccounts,
   checkAccounts,
+  testFirestoreConnection,
+  checkFirestore,
   // Quick helpers
   createAdmin: async (username, password, displayName) => await createTestAccount(username, password, displayName, 'admin'),
   createSuperAdmin: async (username, password, displayName) => await createTestAccount(username, password, displayName, 'superadmin'),
