@@ -199,8 +199,35 @@ function showToast(n){ const el = document.createElement('div'); el.className='t
 function matchesCurrentUserRole(targetRoles){ if(!APP.currentUser) return false; return targetRoles.indexOf(APP.currentUser.role) !== -1 || targetRoles.indexOf('all') !== -1; }
 function showPendingNotificationsForCurrentUser(){ if(!APP.currentUser || !DATA.notifications) return; const recent = DATA.notifications.slice().reverse().filter(n=>matchesCurrentUserRole(n.targetRoles)).slice(0,5); recent.forEach(n=>showToast(n)); }
 
+/* Auto-create default accounts on first load */
+async function createDefaultAccounts(){
+  if(DATA.users && DATA.users.length > 0) return; // Accounts already exist
+  
+  try {
+    // Create Super-Admin
+    await createUserAccount('superadmin', 'super123', 'Super Admin', 'superadmin');
+    
+    // Create Admin
+    await createUserAccount('admin', 'admin123', 'Admin User', 'admin');
+    
+    // Create Employee
+    await createUserAccount('employee', 'emp123', 'Employee User', 'employee');
+    
+    console.log('✅ Default accounts created!');
+    console.log('📋 Login Credentials:');
+    console.log('Super-Admin: username="superadmin", password="super123"');
+    console.log('Admin: username="admin", password="admin123"');
+    console.log('Employee: username="employee", password="emp123"');
+  } catch(e) {
+    console.error('Error creating default accounts:', e);
+  }
+}
+
 /* init login */
-function init(){
+async function init(){
+  // Auto-create default accounts if none exist
+  await createDefaultAccounts();
+  
   if(!DATA.users || DATA.users.length === 0){
     firstRunNote.style.display = 'block';
     createSuperBtn.style.display = 'inline-block';
