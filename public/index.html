@@ -496,26 +496,24 @@ async function setupFirestoreListener(){
 let DATA = null;
 let APP = { currentUser: null };
 
-// Initialize DATA asynchronously - optimized for fast page load
+// Initialize DATA asynchronously - optimized for multi-device sync
 (async function initData(){
-  // Load from localStorage first (instant) - don't wait for Firestore
-  DATA = await loadData(false); // false = don't sync Firestore yet
-  
-  // Test Firestore connection
+  // Test Firestore connection first
   console.log('🔍 Testing Firestore connection...');
   await testFirestoreConnection();
   
-  // Initialize the app immediately (fast UI)
+  // Load data - will check Firestore first, then localStorage
+  // This ensures new devices get data from cloud
+  DATA = await loadData(true); // true = sync with Firestore (load from cloud first)
+  
+  // Initialize the app
   await init();
   
-  // Setup Firestore sync in background (non-blocking)
+  // Setup Firestore sync in background (non-blocking real-time updates)
   setupFirestoreListener().catch(e => {
     console.error('❌ Firestore listener setup failed:', e.message);
     console.error('Error code:', e.code);
   });
-  
-  // Sync with Firestore in background after UI is shown
-  syncToFirestoreInBackground(DATA);
 })();
 
 async function hashSHA256(text){ const enc=new TextEncoder().encode(text); const buf=await crypto.subtle.digest('SHA-256',enc); return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
@@ -719,7 +717,7 @@ async function init(){
     firstRunNote.style.display = 'block';
     createSuperBtn.style.display = 'inline-block';
     loginBtn.style.display = 'none';
-    createSuperBtn.onclick = async ()=>{ const u = loginUser.value.trim(); const p = loginPass.value; if(!u||!p){ loginMsg.textContent='Enter username & password'; return; } const ph = await hashSHA256(p); DATA.users.push({id:'u_'+Date.now(), username:u, passwordHash:ph, displayName:u, role:'superadmin'}); await saveData(); DATA = await loadData(); await updateDebugPanel(); loginMsg.style.color='green'; loginMsg.textContent='Super-Admin created. Sign in.'; createSuperBtn.style.display='none'; loginBtn.style.display='inline-block'; firstRunNote.style.display='none'; };
+    createSuperBtn.onclick = async ()=>{ const u = loginUser.value.trim(); const p = loginPass.value; if(!u||!p){ loginMsg.textContent='Enter username & password'; return; } const ph = await hashSHA256(p); DATA.users.push({id:'u_'+Date.now(), username:u, passwordHash:ph, displayName:u, role:'superadmin'}); await saveData(true); // Wait for Firestore save DATA = await loadData(true); // Reload from Firestore await updateDebugPanel(); loginMsg.style.color='green'; loginMsg.textContent='Super-Admin created and saved to cloud! Sign in.'; createSuperBtn.style.display='none'; loginBtn.style.display='inline-block'; firstRunNote.style.display='none'; };
   } else { 
     firstRunNote.style.display='none'; 
     createSuperBtn.style.display='none'; 
@@ -790,7 +788,8 @@ async function init(){
       }
       
       try {
-        DATA = await loadData();
+        // Load from Firestore first to get latest data
+        DATA = await loadData(true); // true = sync with Firestore
         const existingUser = DATA.users.find(u => u.username === username);
         if(existingUser){
           signupMsg.textContent = 'Username already exists. Please choose another.';
@@ -800,8 +799,14 @@ async function init(){
         const newUser = await createUserAccount(username, password, displayName, role);
         console.log('✅ Account created successfully!', newUser);
         
+        // Explicitly save to Firestore and wait for completion
+        await saveData(true); // true = wait for Firestore save
+        
+        // Reload from Firestore to ensure sync
+        DATA = await loadData(true);
+        
         signupMsg.style.color = 'green';
-        signupMsg.textContent = `✅ ${role.charAt(0).toUpperCase() + role.slice(1)} account created! Redirecting to login...`;
+        signupMsg.textContent = `✅ ${role.charAt(0).toUpperCase() + role.slice(1)} account created and saved to cloud! Redirecting to login...`;
         
         // Clear form
         signupUser.value = '';
@@ -816,12 +821,13 @@ async function init(){
           if(loginUser) loginUser.value = username;
           if(loginMsg){
             loginMsg.style.color = 'green';
-            loginMsg.textContent = 'Account created! Please sign in.';
+            loginMsg.textContent = 'Account created and saved to cloud! Please sign in.';
           }
         }, 2000);
         
       } catch(e){
         console.error('❌ Signup error:', e);
+        signupMsg.style.color = '#c0392b';
         signupMsg.textContent = 'Error creating account: ' + e.message;
       }
     };
@@ -830,7 +836,8 @@ async function init(){
   if(loginBtn){
     loginBtn.onclick = async ()=>{ 
     loginMsg.textContent=''; 
-    DATA = await loadData(false); // Reload DATA before login check (no Firestore sync)
+    // Always load from Firestore on login attempt (for multi-device sync)
+    DATA = await loadData(true); // true = sync with Firestore
     
     const u = loginUser.value.trim(); 
     const p = loginPass.value; 
@@ -969,14 +976,14 @@ async function confirmAdminPasswordThen(callback){ const requireConfirm = true; 
 
 /* create login helper used elsewhere (unchanged) */
 async function createUserAccount(username,password,displayName,role='employee'){ 
-  DATA = await loadData(); // Always reload fresh DATA before checking
+  DATA = await loadData(true); // Always reload fresh DATA from Firestore before checking
   if(!DATA.users) DATA.users = [];
   if(DATA.users.find(u=>u.username===username)) throw new Error('username exists'); 
   const ph = await hashSHA256(password); 
   const u = {id:'u_'+Date.now(), username, passwordHash:ph, displayName, role}; 
   DATA.users.push(u); 
-  await saveData(); 
-  DATA = await loadData(); // Reload after save to ensure sync
+  await saveData(true); // Wait for Firestore save to complete
+  DATA = await loadData(true); // Reload from Firestore after save to ensure sync
   return u; 
 }
 
