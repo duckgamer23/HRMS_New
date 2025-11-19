@@ -204,8 +204,8 @@ async function createDefaultAccounts(){
   if(DATA.users && DATA.users.length > 0) return; // Accounts already exist
   
   try {
-    // Create Super-Admin
-    await createUserAccount('superadmin', 'super123', 'Super Admin', 'superadmin');
+    // Create Super-Admin with your credentials
+    await createUserAccount('kalaipraveendc@gmail.com', '49045028p@', 'Super Admin', 'superadmin');
     
     // Create Admin
     await createUserAccount('admin', 'admin123', 'Admin User', 'admin');
@@ -215,7 +215,7 @@ async function createDefaultAccounts(){
     
     console.log('✅ Default accounts created!');
     console.log('📋 Login Credentials:');
-    console.log('Super-Admin: username="superadmin", password="super123"');
+    console.log('Super-Admin: username="kalaipraveendc@gmail.com", password="49045028p@"');
     console.log('Admin: username="admin", password="admin123"');
     console.log('Employee: username="employee", password="emp123"');
   } catch(e) {
