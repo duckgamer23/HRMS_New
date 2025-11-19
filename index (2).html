@@ -102,10 +102,12 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
 <!-- LOGIN / FIRST RUN (create SuperAdmin) -->
 <div id="loginWrap" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(11,18,32,0.06);z-index:999">
   <div style="width:520px;background:var(--panel);border-radius:12px;padding:22px;box-shadow:var(--shadow)">
-    <h2 style="margin:0 0 10px 0">MAFS HRMS — Sign in</h2>
-    <div class="tiny" style="margin-bottom:12px;color:var(--muted)">Sign in as <strong>Employee</strong>, <strong>Admin</strong>, or <strong>Super-Admin</strong></div>
+    <h2 style="margin:0 0 10px 0">MAFS HRMS — <span id="loginTitle">Sign in</span></h2>
+    <div class="tiny" style="margin-bottom:12px;color:var(--muted)"><span id="loginSubtitle">Sign in as <strong>Employee</strong>, <strong>Admin</strong>, or <strong>Super-Admin</strong></span></div>
     <div id="firstRunNote" class="tiny" style="display:none;margin-bottom:10px;padding:8px;background:rgba(79,70,229,0.1);border-radius:6px;color:var(--accent)"><strong>First-time Setup:</strong> Create the first Super-Admin account. After this, you can create employee and admin accounts from the dashboard.</div>
-    <div style="display:grid;gap:8px">
+    
+    <!-- Login Form -->
+    <div id="loginForm" style="display:grid;gap:8px">
       <input id="loginUser" placeholder="Username" class="input"/>
       <input id="loginPass" type="password" placeholder="Password" class="input"/>
       <div style="display:flex;gap:8px">
@@ -113,7 +115,31 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
         <button id="createSuperBtn" class="btn ghost" style="display:none">Create Super-Admin</button>
       </div>
       <div id="loginMsg" class="tiny" style="color:#c0392b"></div>
-      <div class="tiny" style="margin-top:8px;color:var(--muted)">Don't have credentials? Contact your administrator. They will create your account and provide login details.</div>
+      <div class="tiny" style="margin-top:8px;color:var(--muted);text-align:center">
+        Don't have an account? <a href="#" id="showSignupLink" style="color:var(--accent);cursor:pointer;text-decoration:underline">Sign up for Super-Admin</a>
+      </div>
+    </div>
+    
+    <!-- Signup Form -->
+    <div id="signupForm" style="display:none">
+      <input id="signupUser" placeholder="Username (e.g., your email)" class="input"/>
+      <input id="signupPass" type="password" placeholder="Password" class="input"/>
+      <input id="signupPassConfirm" type="password" placeholder="Confirm Password" class="input"/>
+      <input id="signupDisplayName" placeholder="Display Name" class="input"/>
+      <select id="signupRole" class="input">
+        <option value="superadmin">Super-Admin</option>
+        <option value="admin">Admin</option>
+        <option value="employee">Employee</option>
+      </select>
+      <div style="display:flex;gap:8px">
+        <button id="signupBtn" class="btn primary">Create Account</button>
+        <button id="cancelSignupBtn" class="btn ghost">Cancel</button>
+      </div>
+      <div id="signupMsg" class="tiny" style="color:#c0392b"></div>
+      <div class="tiny" style="margin-top:8px;color:var(--muted);text-align:center">
+        Already have an account? <a href="#" id="showLoginLink" style="color:var(--accent);cursor:pointer;text-decoration:underline">Sign in</a>
+      </div>
+    </div>
       <div id="debugPanel" style="margin-top:12px;padding:10px;background:rgba(79,70,229,0.05);border-radius:6px;font-size:11px;display:none">
         <div style="font-weight:700;margin-bottom:6px">🔍 Debug Info:</div>
         <div id="debugContent"></div>
@@ -317,6 +343,11 @@ async function hashSHA256(text){ const enc=new TextEncoder().encode(text); const
 
 /* DOM refs */
 const loginWrap = document.getElementById('loginWrap'), firstRunNote = document.getElementById('firstRunNote'), createSuperBtn = document.getElementById('createSuperBtn'), loginBtn = document.getElementById('loginBtn'), loginUser = document.getElementById('loginUser'), loginPass = document.getElementById('loginPass'), loginMsg = document.getElementById('loginMsg');
+const loginForm = document.getElementById('loginForm'), signupForm = document.getElementById('signupForm');
+const loginTitle = document.getElementById('loginTitle'), loginSubtitle = document.getElementById('loginSubtitle');
+const showSignupLink = document.getElementById('showSignupLink'), showLoginLink = document.getElementById('showLoginLink');
+const signupBtn = document.getElementById('signupBtn'), cancelSignupBtn = document.getElementById('cancelSignupBtn');
+const signupUser = document.getElementById('signupUser'), signupPass = document.getElementById('signupPass'), signupPassConfirm = document.getElementById('signupPassConfirm'), signupDisplayName = document.getElementById('signupDisplayName'), signupRole = document.getElementById('signupRole'), signupMsg = document.getElementById('signupMsg');
 const app = document.getElementById('app'), navMain = document.getElementById('navMain'), navEmp = document.getElementById('navEmp'), navAdmin = document.getElementById('navAdmin'), userAvatar = document.getElementById('userAvatar'), userName = document.getElementById('userName'), userRole = document.getElementById('userRole'), sideSignOut = document.getElementById('sideSignOut');
 const mainContent = document.getElementById('mainContent'), pageTitle = document.getElementById('pageTitle'), pageSubtitle = document.getElementById('pageSubtitle');
 const recentWrap = document.getElementById('recentWrap'), annText = document.getElementById('annText'), toastRoot = document.getElementById('toastRoot');
@@ -515,6 +546,95 @@ async function init(){
     createSuperBtn.style.display='none'; 
     loginBtn.style.display='inline-block'; 
   }
+  
+  // Show/Hide Signup Form
+  showSignupLink.onclick = (e)=>{
+    e.preventDefault();
+    loginForm.style.display = 'none';
+    signupForm.style.display = 'grid';
+    signupForm.style.gap = '8px';
+    loginTitle.textContent = 'Sign up';
+    loginSubtitle.textContent = 'Create a new account (Super-Admin, Admin, or Employee)';
+    signupMsg.textContent = '';
+  };
+  
+  showLoginLink.onclick = (e)=>{
+    e.preventDefault();
+    signupForm.style.display = 'none';
+    loginForm.style.display = 'grid';
+    loginTitle.textContent = 'Sign in';
+    loginSubtitle.textContent = 'Sign in as <strong>Employee</strong>, <strong>Admin</strong>, or <strong>Super-Admin</strong>';
+    loginMsg.textContent = '';
+  };
+  
+  cancelSignupBtn.onclick = (e)=>{
+    e.preventDefault();
+    showLoginLink.onclick(e);
+    signupUser.value = '';
+    signupPass.value = '';
+    signupPassConfirm.value = '';
+    signupDisplayName.value = '';
+    signupRole.value = 'superadmin';
+  };
+  
+  // Signup Button Handler
+  signupBtn.onclick = async ()=>{
+    signupMsg.textContent = '';
+    const username = signupUser.value.trim();
+    const password = signupPass.value;
+    const passwordConfirm = signupPassConfirm.value;
+    const displayName = signupDisplayName.value.trim() || username;
+    const role = signupRole.value;
+    
+    if(!username || !password || !passwordConfirm){
+      signupMsg.textContent = 'Please fill in all fields';
+      return;
+    }
+    
+    if(password !== passwordConfirm){
+      signupMsg.textContent = 'Passwords do not match';
+      return;
+    }
+    
+    if(password.length < 6){
+      signupMsg.textContent = 'Password must be at least 6 characters';
+      return;
+    }
+    
+    try {
+      DATA = await loadData();
+      const existingUser = DATA.users.find(u => u.username === username);
+      if(existingUser){
+        signupMsg.textContent = 'Username already exists. Please choose another.';
+        return;
+      }
+      
+      const newUser = await createUserAccount(username, password, displayName, role);
+      console.log('✅ Account created successfully!', newUser);
+      
+      signupMsg.style.color = 'green';
+      signupMsg.textContent = `✅ ${role.charAt(0).toUpperCase() + role.slice(1)} account created! Redirecting to login...`;
+      
+      // Clear form
+      signupUser.value = '';
+      signupPass.value = '';
+      signupPassConfirm.value = '';
+      signupDisplayName.value = '';
+      signupRole.value = 'superadmin';
+      
+      // Switch back to login form after 2 seconds
+      setTimeout(() => {
+        showLoginLink.onclick({preventDefault: ()=>{}});
+        loginUser.value = username;
+        loginMsg.style.color = 'green';
+        loginMsg.textContent = 'Account created! Please sign in.';
+      }, 2000);
+      
+    } catch(e){
+      console.error('❌ Signup error:', e);
+      signupMsg.textContent = 'Error creating account: ' + e.message;
+    }
+  };
   
   loginBtn.onclick = async ()=>{ 
     loginMsg.textContent=''; 
