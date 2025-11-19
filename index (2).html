@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>MAFS HRMS — Updated Attendance Rules</title>
+<title>MAYURA Vahan Private Limited — Updated Attendance Rules</title>
 <style>
 :root{
   --bg:#f5f8fb; --panel:#ffffff; --muted:#6b7280; --accent:#4f46e5; --accent-2:#22c1c3;
@@ -102,7 +102,7 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
 <!-- LOGIN / FIRST RUN (create SuperAdmin) -->
 <div id="loginWrap" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(11,18,32,0.06);z-index:999">
   <div style="width:520px;background:var(--panel);border-radius:12px;padding:22px;box-shadow:var(--shadow)">
-    <h2 style="margin:0 0 10px 0">MAFS HRMS — <span id="loginTitle">Sign in</span></h2>
+    <h2 style="margin:0 0 10px 0">MAYURA Vahan Private Limited — <span id="loginTitle">Sign in</span></h2>
     <div class="tiny" style="margin-bottom:12px;color:var(--muted)"><span id="loginSubtitle">Sign in as <strong>Employee</strong>, <strong>Admin</strong>, or <strong>Super-Admin</strong></span></div>
     <div id="firstRunNote" class="tiny" style="display:none;margin-bottom:10px;padding:8px;background:rgba(79,70,229,0.1);border-radius:6px;color:var(--accent)"><strong>First-time Setup:</strong> Create the first Super-Admin account. After this, you can create employee and admin accounts from the dashboard.</div>
     
@@ -155,7 +155,7 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
 <!-- APP -->
 <div class="app" id="app" style="display:none">
   <aside class="sidebar">
-    <div class="brand"><div class="logo">M</div> MAFS HRMS</div>
+    <div class="brand"><div class="logo">M</div> MAYURA Vahan Private Limited</div>
     <div class="side-search"><input id="sideSearch" placeholder="Search employees..." /></div>
 
     <div class="nav-group"><div class="nav-title">MAIN</div><div class="nav-list" id="navMain"></div></div>
@@ -272,7 +272,7 @@ async function testFirestoreConnection(){
 // Load data - Check Firestore FIRST on new devices, then localStorage for speed
 async function loadData(syncFirestore = true){
   const db = await checkFirestore();
-  const init={users:[],employees:[],attendance:{},leaves:[],payslips:[],announcements:'',settings:{companyName:'MAFS Studio',currency:'₹'},notifications:[]};
+  const init={users:[],employees:[],attendance:{},leaves:[],payslips:[],announcements:'',settings:{companyName:'MAYURA Vahan Private Limited',currency:'₹'},notifications:[]};
   
   // Check if localStorage has data (to detect new devices)
   const raw = localStorage.getItem(STORAGE_KEY);
