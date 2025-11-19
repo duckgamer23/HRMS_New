@@ -221,54 +221,68 @@ function checkFirestore(){
   return null;
 }
 
-// Load data from Firestore (online) or localStorage (offline)
-async function loadData(){
-  const db = checkFirestore();
-  
-  // Try Firestore first (online storage)
-  if(db){
-    try {
-      const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js");
-      const dataDoc = doc(db, 'hrms_data', FIRESTORE_DOC_ID);
-      const docSnap = await getDoc(dataDoc);
-      
-      if(docSnap.exists()){
-        const firestoreData = docSnap.data();
-        console.log('✅ Loaded data from Firestore (online)');
-        // Also save to localStorage as backup
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(firestoreData));
-        return firestoreData;
-      } else {
-        console.log('📝 No Firestore data found, checking localStorage...');
-      }
-    } catch(e){
-      console.error('❌ Firestore load error:', e);
-      console.log('📱 Falling back to localStorage...');
-    }
-  }
-  
-  // Fallback to localStorage (offline/local)
+// Load data from localStorage first (fast), then sync with Firestore in background
+async function loadData(syncFirestore = true){
+  // Load from localStorage first (instant, no network delay)
   const raw = localStorage.getItem(STORAGE_KEY);
   if(!raw){
     const init={users:[],employees:[],attendance:{},leaves:[],payslips:[],announcements:'',settings:{companyName:'MAFS Studio',currency:'₹'},notifications:[]};
     localStorage.setItem(STORAGE_KEY,JSON.stringify(init));
-    // Try to save initial data to Firestore if available
-    if(db) saveDataToFirestore(init);
+    // Sync to Firestore in background (non-blocking)
+    if(syncFirestore) syncToFirestoreInBackground(init);
     return init;
   }
+  
+  let localData;
   try{
-    const localData = JSON.parse(raw);
-    // If we have Firestore but data exists only in localStorage, sync it
-    if(db) saveDataToFirestore(localData);
-    return localData;
+    localData = JSON.parse(raw);
   } catch(e){
     console.error('storage parse',e);
     localStorage.removeItem(STORAGE_KEY);
-    return loadData();
+    return loadData(syncFirestore);
   }
+  
+  // Sync with Firestore in background (non-blocking)
+  if(syncFirestore) syncToFirestoreInBackground(localData);
+  
+  return localData;
 }
 
-// Save data to Firestore (online)
+// Sync data with Firestore in background (non-blocking)
+async function syncToFirestoreInBackground(localData){
+  const db = checkFirestore();
+  if(!db) return;
+  
+  // Run in background without blocking
+  (async () => {
+    try {
+      const { doc, getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js");
+      const dataDoc = doc(db, 'hrms_data', FIRESTORE_DOC_ID);
+      const docSnap = await getDoc(dataDoc);
+      
+      if(docSnap.exists()){
+        // Firestore has data - merge if needed (Firestore wins for conflicts)
+        const firestoreData = docSnap.data();
+        // Update localStorage with Firestore data if it's newer
+        if(firestoreData && Object.keys(firestoreData).length > 0){
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(firestoreData));
+          // Update DATA if it exists
+          if(typeof DATA !== 'undefined' && DATA){
+            Object.assign(DATA, firestoreData);
+          }
+        }
+      } else {
+        // No Firestore data - upload local data
+        await setDoc(dataDoc, localData, { merge: false });
+      }
+    } catch(e){
+      // Silently fail - Firestore sync is optional
+      console.warn('Firestore sync failed (non-critical):', e.message);
+    }
+  })();
+}
+
+// Save data to Firestore (online) - non-blocking
 async function saveDataToFirestore(data){
   const db = checkFirestore();
   if(!db) return false;
@@ -277,10 +291,9 @@ async function saveDataToFirestore(data){
     const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js");
     const dataDoc = doc(db, 'hrms_data', FIRESTORE_DOC_ID);
     await setDoc(dataDoc, data, { merge: false });
-    console.log('✅ Saved data to Firestore (online)');
     return true;
   } catch(e){
-    console.error('❌ Firestore save error:', e);
+    // Silently fail - Firestore is optional
     return false;
   }
 }
@@ -290,8 +303,10 @@ async function saveData(){
   // Save to localStorage immediately (fast, local backup)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
   
-  // Save to Firestore (online, persistent)
-  await saveDataToFirestore(DATA);
+  // Save to Firestore in background (non-blocking)
+  saveDataToFirestore(DATA).catch(e => {
+    console.warn('Firestore save failed (non-critical):', e.message);
+  });
   
   broadcastChange();
 }
@@ -308,7 +323,6 @@ async function setupFirestoreListener(){
     firestoreUnsubscribe = onSnapshot(dataDoc, (docSnap) => {
       if(docSnap.exists()){
         const firestoreData = docSnap.data();
-        console.log('🔄 Data updated from Firestore (real-time sync)');
         // Update DATA without triggering save (to avoid loop)
         Object.assign(DATA, firestoreData);
         // Update localStorage
@@ -317,11 +331,10 @@ async function setupFirestoreListener(){
         onExternalUpdate();
       }
     }, (error) => {
-      console.error('❌ Firestore listener error:', error);
+      // Silently handle errors - Firestore is optional
     });
     
     firestoreReady = true;
-    console.log('✅ Firestore real-time sync enabled');
   } catch(e){
     console.error('❌ Firestore listener setup error:', e);
   }
@@ -330,13 +343,21 @@ async function setupFirestoreListener(){
 let DATA = null;
 let APP = { currentUser: null };
 
-// Initialize DATA asynchronously
+// Initialize DATA asynchronously - optimized for fast page load
 (async function initData(){
-  DATA = await loadData();
-  // Setup Firestore real-time listener after initial load
-  await setupFirestoreListener();
-  // Now initialize the app
+  // Load from localStorage first (instant) - don't wait for Firestore
+  DATA = await loadData(false); // false = don't sync Firestore yet
+  
+  // Initialize the app immediately (fast UI)
   await init();
+  
+  // Setup Firestore sync in background (non-blocking)
+  setupFirestoreListener().catch(e => {
+    console.warn('Firestore listener setup failed (non-critical):', e.message);
+  });
+  
+  // Sync with Firestore in background after UI is shown
+  syncToFirestoreInBackground(DATA);
 })();
 
 async function hashSHA256(text){ const enc=new TextEncoder().encode(text); const buf=await crypto.subtle.digest('SHA-256',enc); return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
@@ -651,18 +672,10 @@ async function init(){
   if(loginBtn){
     loginBtn.onclick = async ()=>{ 
     loginMsg.textContent=''; 
-    DATA = await loadData(); // Reload DATA before login check
-    
-    console.log('🔐 Login attempt');
-    console.log('📊 Total users in system:', DATA.users ? DATA.users.length : 0);
-    if(DATA.users && DATA.users.length > 0) {
-      console.log('👥 Available users:', DATA.users.map(u => u.username));
-    }
+    DATA = await loadData(false); // Reload DATA before login check (no Firestore sync)
     
     const u = loginUser.value.trim(); 
     const p = loginPass.value; 
-    
-    console.log('📝 Entered username:', u);
     
     // Update debug panel with login attempt
     const debugContent = document.getElementById('debugContent');
@@ -678,28 +691,21 @@ async function init(){
     
     const user = DATA.users.find(x=>x.username===u); 
     if(!user){ 
-      console.error('❌ User not found:', u);
       loginMsg.textContent='Invalid credentials - User not found'; 
       if(debugContent) debugContent.innerHTML += `<div style="color:#c0392b;margin-top:4px">❌ User "${u}" not found in system</div>`;
       return;
     } 
     
-    console.log('✅ User found:', user.username, 'Role:', user.role);
     if(debugContent) debugContent.innerHTML += `<div style="color:green;margin-top:4px">✅ User found: ${user.username} (${user.role})</div>`;
     
     const ph = await hashSHA256(p); 
-    console.log('🔑 Password hash comparison:');
-    console.log('  Entered hash:', ph);
-    console.log('  Stored hash:', user.passwordHash);
     
     if(ph !== user.passwordHash){ 
-      console.error('❌ Password hash mismatch');
       loginMsg.textContent='Invalid credentials - Wrong password'; 
       if(debugContent) debugContent.innerHTML += '<div style="color:#c0392b;margin-top:4px">❌ Password incorrect</div>';
       return;
     } 
     
-    console.log('✅ Login successful!');
     if(debugContent) debugContent.innerHTML += '<div style="color:green;margin-top:4px;font-weight:700">✅ Login successful! Redirecting...</div>';
     APP.currentUser = {...user}; 
     afterLogin(); 
