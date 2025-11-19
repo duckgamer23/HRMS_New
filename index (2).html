@@ -69,6 +69,7 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
   // Import the functions you need from the SDKs you need
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
   import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-analytics.js";
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
   // TODO: Add SDKs for Firebase products that you want to use
   // https://firebase.google.com/docs/web/setup#available-libraries
@@ -88,10 +89,12 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
   // Initialize Firebase
   const firebaseApp = initializeApp(firebaseConfig);
   const analytics = getAnalytics(firebaseApp);
+  const db = getFirestore(firebaseApp);
 
   // Make Firebase app available globally if needed
   window.firebaseApp = firebaseApp;
   window.firebaseAnalytics = analytics;
+  window.firebaseDb = db;
 </script>
 </head>
 <body>
@@ -179,12 +182,136 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
 */
 
 const STORAGE_KEY = 'mafs_hrms_att_once_v1';
+const FIRESTORE_DOC_ID = 'hrms_data';
 
-function loadData(){ const raw = localStorage.getItem(STORAGE_KEY); if(!raw){ const init={users:[],employees:[],attendance:{},leaves:[],payslips:[],announcements:'',settings:{companyName:'MAFS Studio',currency:'₹'},notifications:[]}; localStorage.setItem(STORAGE_KEY,JSON.stringify(init)); return init;} try{return JSON.parse(raw);}catch(e){console.error('storage parse',e); localStorage.removeItem(STORAGE_KEY); return loadData();}}
-function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA)); broadcastChange(); }
+let firestoreReady = false;
+let firestoreUnsubscribe = null;
 
-let DATA = loadData();
+// Check if Firestore is available
+function checkFirestore(){
+  if(typeof window !== 'undefined' && window.firebaseDb){
+    return window.firebaseDb;
+  }
+  return null;
+}
+
+// Load data from Firestore (online) or localStorage (offline)
+async function loadData(){
+  const db = checkFirestore();
+  
+  // Try Firestore first (online storage)
+  if(db){
+    try {
+      const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js");
+      const dataDoc = doc(db, 'hrms_data', FIRESTORE_DOC_ID);
+      const docSnap = await getDoc(dataDoc);
+      
+      if(docSnap.exists()){
+        const firestoreData = docSnap.data();
+        console.log('✅ Loaded data from Firestore (online)');
+        // Also save to localStorage as backup
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(firestoreData));
+        return firestoreData;
+      } else {
+        console.log('📝 No Firestore data found, checking localStorage...');
+      }
+    } catch(e){
+      console.error('❌ Firestore load error:', e);
+      console.log('📱 Falling back to localStorage...');
+    }
+  }
+  
+  // Fallback to localStorage (offline/local)
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(!raw){
+    const init={users:[],employees:[],attendance:{},leaves:[],payslips:[],announcements:'',settings:{companyName:'MAFS Studio',currency:'₹'},notifications:[]};
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(init));
+    // Try to save initial data to Firestore if available
+    if(db) saveDataToFirestore(init);
+    return init;
+  }
+  try{
+    const localData = JSON.parse(raw);
+    // If we have Firestore but data exists only in localStorage, sync it
+    if(db) saveDataToFirestore(localData);
+    return localData;
+  } catch(e){
+    console.error('storage parse',e);
+    localStorage.removeItem(STORAGE_KEY);
+    return loadData();
+  }
+}
+
+// Save data to Firestore (online)
+async function saveDataToFirestore(data){
+  const db = checkFirestore();
+  if(!db) return false;
+  
+  try {
+    const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js");
+    const dataDoc = doc(db, 'hrms_data', FIRESTORE_DOC_ID);
+    await setDoc(dataDoc, data, { merge: false });
+    console.log('✅ Saved data to Firestore (online)');
+    return true;
+  } catch(e){
+    console.error('❌ Firestore save error:', e);
+    return false;
+  }
+}
+
+// Save data function (saves to both Firestore and localStorage)
+async function saveData(){
+  // Save to localStorage immediately (fast, local backup)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
+  
+  // Save to Firestore (online, persistent)
+  await saveDataToFirestore(DATA);
+  
+  broadcastChange();
+}
+
+// Setup Firestore real-time listener for multi-device sync
+async function setupFirestoreListener(){
+  const db = checkFirestore();
+  if(!db) return;
+  
+  try {
+    const { doc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js");
+    const dataDoc = doc(db, 'hrms_data', FIRESTORE_DOC_ID);
+    
+    firestoreUnsubscribe = onSnapshot(dataDoc, (docSnap) => {
+      if(docSnap.exists()){
+        const firestoreData = docSnap.data();
+        console.log('🔄 Data updated from Firestore (real-time sync)');
+        // Update DATA without triggering save (to avoid loop)
+        Object.assign(DATA, firestoreData);
+        // Update localStorage
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(firestoreData));
+        // Refresh UI if needed
+        onExternalUpdate();
+      }
+    }, (error) => {
+      console.error('❌ Firestore listener error:', error);
+    });
+    
+    firestoreReady = true;
+    console.log('✅ Firestore real-time sync enabled');
+  } catch(e){
+    console.error('❌ Firestore listener setup error:', e);
+  }
+}
+
+let DATA = null;
 let APP = { currentUser: null };
+
+// Initialize DATA asynchronously
+(async function initData(){
+  DATA = await loadData();
+  // Setup Firestore real-time listener after initial load
+  await setupFirestoreListener();
+  // Now initialize the app
+  await init();
+})();
 
 async function hashSHA256(text){ const enc=new TextEncoder().encode(text); const buf=await crypto.subtle.digest('SHA-256',enc); return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 
@@ -197,23 +324,23 @@ const exportCSVs = document.getElementById('exportCSVs'), exportAll = document.g
 
 /* storage sync */
 function broadcastChange(){ try{ localStorage.setItem('__mafs_sync', JSON.stringify({ts:Date.now()})); }catch(e){ } }
-window.addEventListener('storage',(ev)=>{ if(ev.key === '__mafs_sync'){ DATA = loadData(); onExternalUpdate(); } });
+window.addEventListener('storage',async (ev)=>{ if(ev.key === '__mafs_sync'){ DATA = await loadData(); onExternalUpdate(); } });
 
 function onExternalUpdate(){ annText.textContent = DATA.announcements || 'No announcements'; refreshRecent(); if(APP.currentUser){ if(APP.currentUser.role === 'employee'){ if(currentView === 'employeeHome') renderEmployeeHome(); } else { if(currentView === 'adminDashboard') renderAdminDashboard(); if(currentView === 'attendanceManagement') renderAttendanceManagement(); if(currentView === 'employeeManagement') renderEmployeeManagement(); } } showPendingNotificationsForCurrentUser(); }
 
 /* notifications */
-function pushNotification({title,message,level='info',targetRoles=['superadmin','admin','hr']}){ const n = {id:'n_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),title,message,level,targetRoles,ts:new Date().toISOString()}; DATA.notifications = DATA.notifications || []; DATA.notifications.push(n); saveData(); if(matchesCurrentUserRole(n.targetRoles)) showToast(n); }
+async function pushNotification({title,message,level='info',targetRoles=['superadmin','admin','hr']}){ const n = {id:'n_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),title,message,level,targetRoles,ts:new Date().toISOString()}; DATA.notifications = DATA.notifications || []; DATA.notifications.push(n); await saveData(); if(matchesCurrentUserRole(n.targetRoles)) showToast(n); }
 function showToast(n){ const el = document.createElement('div'); el.className='toast' + (n.level==='success' ? ' success' : n.level==='warn' ? ' warn' : ''); el.innerHTML = `<div style="font-weight:700">${n.title}</div><div class="tiny" style="margin-top:8px;color:var(--muted)">${n.message}</div>`; toastRoot.appendChild(el); setTimeout(()=>{ el.style.transition='opacity 300ms'; el.style.opacity=0; setTimeout(()=>el.remove(),350); },5000); }
 function matchesCurrentUserRole(targetRoles){ if(!APP.currentUser) return false; return targetRoles.indexOf(APP.currentUser.role) !== -1 || targetRoles.indexOf('all') !== -1; }
 function showPendingNotificationsForCurrentUser(){ if(!APP.currentUser || !DATA.notifications) return; const recent = DATA.notifications.slice().reverse().filter(n=>matchesCurrentUserRole(n.targetRoles)).slice(0,5); recent.forEach(n=>showToast(n)); }
 
 /* Update debug panel */
-function updateDebugPanel(){
+async function updateDebugPanel(){
   const panel = document.getElementById('debugPanel');
   const content = document.getElementById('debugContent');
   if(!panel || !content) return;
   
-  DATA = loadData();
+  DATA = await loadData();
   const userCount = DATA.users ? DATA.users.length : 0;
   
   if(userCount === 0){
@@ -232,7 +359,7 @@ function updateDebugPanel(){
 /* Auto-create default accounts on first load */
 async function createDefaultAccounts(force = false){
   // Reload DATA first to get latest state
-  DATA = loadData();
+  DATA = await loadData();
   if(!DATA.users) DATA.users = [];
   
   console.log('🔍 Checking for existing accounts...');
@@ -273,14 +400,14 @@ async function createDefaultAccounts(force = false){
     }
     
     // Create/Update Super-Admin
-    DATA = loadData();
+    DATA = await loadData();
     if(!DATA.users) DATA.users = [];
     const superAdminExists = DATA.users.find(u => u.username === 'kalaipraveendc@gmail.com');
     if(!superAdminExists || force){
       if(superAdminExists && force){
         DATA.users = DATA.users.filter(u => u.username !== 'kalaipraveendc@gmail.com');
-        saveData();
-        DATA = loadData();
+        await saveData();
+        DATA = await loadData();
       }
       console.log('Creating Super-Admin account...');
       const superAdmin = await createUserAccount('kalaipraveendc@gmail.com', '49045028p@', 'Super Admin', 'superadmin');
@@ -288,14 +415,14 @@ async function createDefaultAccounts(force = false){
     }
     
     // Create/Update Admin
-    DATA = loadData();
+    DATA = await loadData();
     if(!DATA.users) DATA.users = [];
     const adminExists = DATA.users.find(u => u.username === 'admin');
     if(!adminExists || force){
       if(adminExists && force){
         DATA.users = DATA.users.filter(u => u.username !== 'admin');
-        saveData();
-        DATA = loadData();
+        await saveData();
+        DATA = await loadData();
       }
       console.log('Creating Admin account...');
       const admin = await createUserAccount('admin', 'admin123', 'Admin User', 'admin');
@@ -303,14 +430,14 @@ async function createDefaultAccounts(force = false){
     }
     
     // Create/Update Employee
-    DATA = loadData();
+    DATA = await loadData();
     if(!DATA.users) DATA.users = [];
     const employeeExists = DATA.users.find(u => u.username === 'employee');
     if(!employeeExists || force){
       if(employeeExists && force){
         DATA.users = DATA.users.filter(u => u.username !== 'employee');
-        saveData();
-        DATA = loadData();
+        await saveData();
+        DATA = await loadData();
       }
       console.log('Creating Employee account...');
       const employee = await createUserAccount('employee', 'emp123', 'Employee User', 'employee');
@@ -318,7 +445,7 @@ async function createDefaultAccounts(force = false){
     }
     
     // Final reload
-    DATA = loadData();
+    DATA = await loadData();
     
     console.log('✅ Default accounts ready!');
     console.log('📋 Total accounts now:', DATA.users.length);
@@ -333,8 +460,8 @@ async function createDefaultAccounts(force = false){
     console.error('Error details:', e.message);
     console.error('Full error:', e);
     // Reload DATA even on error to ensure consistency
-    DATA = loadData();
-    updateDebugPanel();
+    DATA = await loadData();
+    await updateDebugPanel();
   }
 }
 
@@ -344,18 +471,18 @@ async function init(){
   await createDefaultAccounts();
   
   // Reload DATA one more time to ensure we have latest state
-  DATA = loadData();
+  DATA = await loadData();
   
   // Update debug panel
-  updateDebugPanel();
+  await updateDebugPanel();
   
   // Setup create accounts button
   const createAccountsBtn = document.getElementById('createAccountsBtn');
   if(createAccountsBtn){
     createAccountsBtn.onclick = async ()=>{
       await createDefaultAccounts(true); // Force recreate
-      DATA = loadData();
-      updateDebugPanel();
+      DATA = await loadData();
+      await updateDebugPanel();
       loginMsg.style.color = 'green';
       loginMsg.textContent = 'Default accounts created/updated! Try logging in now.';
     };
@@ -368,10 +495,10 @@ async function init(){
       if(confirm('⚠️ This will delete ALL data (users, employees, attendance, etc.). Continue?')){
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem('__mafs_sync');
-        DATA = loadData(); // This will create fresh empty data
+        DATA = await loadData(); // This will create fresh empty data
         await createDefaultAccounts(true); // Force recreate default accounts
-        DATA = loadData();
-        updateDebugPanel();
+        DATA = await loadData();
+        await updateDebugPanel();
         loginMsg.style.color = 'green';
         loginMsg.textContent = 'Data cleared! Default accounts created. Try logging in now.';
       }
@@ -382,7 +509,7 @@ async function init(){
     firstRunNote.style.display = 'block';
     createSuperBtn.style.display = 'inline-block';
     loginBtn.style.display = 'none';
-    createSuperBtn.onclick = async ()=>{ const u = loginUser.value.trim(); const p = loginPass.value; if(!u||!p){ loginMsg.textContent='Enter username & password'; return; } const ph = await hashSHA256(p); DATA.users.push({id:'u_'+Date.now(), username:u, passwordHash:ph, displayName:u, role:'superadmin'}); saveData(); DATA = loadData(); updateDebugPanel(); loginMsg.style.color='green'; loginMsg.textContent='Super-Admin created. Sign in.'; createSuperBtn.style.display='none'; loginBtn.style.display='inline-block'; firstRunNote.style.display='none'; };
+    createSuperBtn.onclick = async ()=>{ const u = loginUser.value.trim(); const p = loginPass.value; if(!u||!p){ loginMsg.textContent='Enter username & password'; return; } const ph = await hashSHA256(p); DATA.users.push({id:'u_'+Date.now(), username:u, passwordHash:ph, displayName:u, role:'superadmin'}); await saveData(); DATA = await loadData(); await updateDebugPanel(); loginMsg.style.color='green'; loginMsg.textContent='Super-Admin created. Sign in.'; createSuperBtn.style.display='none'; loginBtn.style.display='inline-block'; firstRunNote.style.display='none'; };
   } else { 
     firstRunNote.style.display='none'; 
     createSuperBtn.style.display='none'; 
@@ -391,7 +518,7 @@ async function init(){
   
   loginBtn.onclick = async ()=>{ 
     loginMsg.textContent=''; 
-    DATA = loadData(); // Reload DATA before login check
+    DATA = await loadData(); // Reload DATA before login check
     
     console.log('🔐 Login attempt');
     console.log('📊 Total users in system:', DATA.users ? DATA.users.length : 0);
@@ -445,7 +572,7 @@ async function init(){
     afterLogin(); 
   };
 }
-init();
+// init() is called automatically after DATA loads - see initData() above
 
 let currentView = null;
 function afterLogin(){ loginWrap.style.display='none'; app.style.display='flex'; userAvatar.textContent = APP.currentUser.displayName.slice(0,1).toUpperCase(); userName.textContent = APP.currentUser.displayName; userRole.textContent = APP.currentUser.role; buildSidebar(); if(APP.currentUser.role === 'employee') renderEmployeeHome(); else renderAdminDashboard(); showPendingNotificationsForCurrentUser(); }
@@ -544,14 +671,14 @@ async function confirmAdminPasswordThen(callback){ const requireConfirm = true; 
 
 /* create login helper used elsewhere (unchanged) */
 async function createUserAccount(username,password,displayName,role='employee'){ 
-  DATA = loadData(); // Always reload fresh DATA before checking
+  DATA = await loadData(); // Always reload fresh DATA before checking
   if(!DATA.users) DATA.users = [];
   if(DATA.users.find(u=>u.username===username)) throw new Error('username exists'); 
   const ph = await hashSHA256(password); 
   const u = {id:'u_'+Date.now(), username, passwordHash:ph, displayName, role}; 
   DATA.users.push(u); 
-  saveData(); 
-  DATA = loadData(); // Reload after save to ensure sync
+  await saveData(); 
+  DATA = await loadData(); // Reload after save to ensure sync
   return u; 
 }
 
@@ -592,8 +719,8 @@ async function createTestAccount(username = 'admin', password = 'admin123', disp
 }
 
 /* Helper to check and list all accounts */
-function checkAccounts(){
-  DATA = loadData();
+async function checkAccounts(){
+  DATA = await loadData();
   console.log('📊 Current accounts in system:');
   if(!DATA.users || DATA.users.length === 0){
     console.log('❌ No accounts found!');
