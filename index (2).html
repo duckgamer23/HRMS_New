@@ -359,7 +359,6 @@ async function createDefaultAccounts(force = false){
   if(allExist && !force) {
     console.log('✅ All required accounts already exist:');
     DATA.users.forEach(u => console.log(`  - ${u.username} (${u.role})`));
-    updateDebugPanel();
     return; // Accounts already exist
   }
   
