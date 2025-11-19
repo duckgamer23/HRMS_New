@@ -114,7 +114,10 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
       <div id="debugPanel" style="margin-top:12px;padding:10px;background:rgba(79,70,229,0.05);border-radius:6px;font-size:11px;display:none">
         <div style="font-weight:700;margin-bottom:6px">🔍 Debug Info:</div>
         <div id="debugContent"></div>
-        <button id="createAccountsBtn" class="btn ghost" style="margin-top:8px;font-size:11px;padding:6px 10px" onclick="async()=>{await createDefaultAccounts(); DATA=loadData(); updateDebugPanel();}">Create Default Accounts</button>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button id="createAccountsBtn" class="btn ghost" style="font-size:11px;padding:6px 10px">Create Default Accounts</button>
+          <button id="clearStorageBtn" class="btn ghost" style="font-size:11px;padding:6px 10px;color:#c0392b">Clear All Data & Reset</button>
+        </div>
       </div>
     </div>
   </div>
@@ -227,42 +230,88 @@ function updateDebugPanel(){
 }
 
 /* Auto-create default accounts on first load */
-async function createDefaultAccounts(){
+async function createDefaultAccounts(force = false){
   // Reload DATA first to get latest state
   DATA = loadData();
+  if(!DATA.users) DATA.users = [];
   
   console.log('🔍 Checking for existing accounts...');
-  console.log('Current users count:', DATA.users ? DATA.users.length : 0);
+  console.log('Current users count:', DATA.users.length);
   
-  if(DATA.users && DATA.users.length > 0) {
-    console.log('✅ Accounts already exist:');
+  // Check if all required accounts exist
+  const requiredAccounts = [
+    {username: 'kalaipraveendc@gmail.com', password: '49045028p@', displayName: 'Super Admin', role: 'superadmin'},
+    {username: 'admin', password: 'admin123', displayName: 'Admin User', role: 'admin'},
+    {username: 'employee', password: 'emp123', displayName: 'Employee User', role: 'employee'}
+  ];
+  
+  let allExist = true;
+  if(!force && DATA.users.length > 0){
+    for(const req of requiredAccounts){
+      const exists = DATA.users.find(u => u.username === req.username);
+      if(!exists){
+        allExist = false;
+        break;
+      }
+    }
+  } else {
+    allExist = false;
+  }
+  
+  if(allExist && !force) {
+    console.log('✅ All required accounts already exist:');
     DATA.users.forEach(u => console.log(`  - ${u.username} (${u.role})`));
     updateDebugPanel();
     return; // Accounts already exist
   }
   
   try {
-    console.log('🔄 No accounts found. Creating default accounts...');
+    if(force){
+      console.log('🔄 Force creating default accounts (replacing existing)...');
+    } else {
+      console.log('🔄 Creating missing default accounts...');
+    }
     
-    // Create Super-Admin with your credentials
-    console.log('Creating Super-Admin account...');
-    const superAdmin = await createUserAccount('kalaipraveendc@gmail.com', '49045028p@', 'Super Admin', 'superadmin');
-    console.log('✅ Super-Admin created:', superAdmin.username);
+    // Create/Update Super-Admin
+    const superAdminExists = DATA.users.find(u => u.username === 'kalaipraveendc@gmail.com');
+    if(!superAdminExists || force){
+      if(superAdminExists && force){
+        DATA.users = DATA.users.filter(u => u.username !== 'kalaipraveendc@gmail.com');
+        saveData();
+      }
+      console.log('Creating Super-Admin account...');
+      const superAdmin = await createUserAccount('kalaipraveendc@gmail.com', '49045028p@', 'Super Admin', 'superadmin');
+      console.log('✅ Super-Admin created:', superAdmin.username);
+    }
     
-    // Create Admin
-    console.log('Creating Admin account...');
-    const admin = await createUserAccount('admin', 'admin123', 'Admin User', 'admin');
-    console.log('✅ Admin created:', admin.username);
+    // Create/Update Admin
+    const adminExists = DATA.users.find(u => u.username === 'admin');
+    if(!adminExists || force){
+      if(adminExists && force){
+        DATA.users = DATA.users.filter(u => u.username !== 'admin');
+        saveData();
+      }
+      console.log('Creating Admin account...');
+      const admin = await createUserAccount('admin', 'admin123', 'Admin User', 'admin');
+      console.log('✅ Admin created:', admin.username);
+    }
     
-    // Create Employee
-    console.log('Creating Employee account...');
-    const employee = await createUserAccount('employee', 'emp123', 'Employee User', 'employee');
-    console.log('✅ Employee created:', employee.username);
+    // Create/Update Employee
+    const employeeExists = DATA.users.find(u => u.username === 'employee');
+    if(!employeeExists || force){
+      if(employeeExists && force){
+        DATA.users = DATA.users.filter(u => u.username !== 'employee');
+        saveData();
+      }
+      console.log('Creating Employee account...');
+      const employee = await createUserAccount('employee', 'emp123', 'Employee User', 'employee');
+      console.log('✅ Employee created:', employee.username);
+    }
     
-    // Reload DATA after creating accounts
+    // Final reload
     DATA = loadData();
     
-    console.log('✅ Default accounts created successfully!');
+    console.log('✅ Default accounts ready!');
     console.log('📋 Total accounts now:', DATA.users.length);
     console.log('📋 Login Credentials:');
     console.log('Super-Admin: username="kalaipraveendc@gmail.com", password="49045028p@"');
@@ -273,6 +322,7 @@ async function createDefaultAccounts(){
   } catch(e) {
     console.error('❌ Error creating default accounts:', e);
     console.error('Error details:', e.message);
+    console.error('Full error:', e);
     // Reload DATA even on error to ensure consistency
     DATA = loadData();
     updateDebugPanel();
@@ -294,9 +344,28 @@ async function init(){
   const createAccountsBtn = document.getElementById('createAccountsBtn');
   if(createAccountsBtn){
     createAccountsBtn.onclick = async ()=>{
-      await createDefaultAccounts();
+      await createDefaultAccounts(true); // Force recreate
       DATA = loadData();
       updateDebugPanel();
+      loginMsg.style.color = 'green';
+      loginMsg.textContent = 'Default accounts created/updated! Try logging in now.';
+    };
+  }
+  
+  // Setup clear storage button
+  const clearStorageBtn = document.getElementById('clearStorageBtn');
+  if(clearStorageBtn){
+    clearStorageBtn.onclick = async ()=>{
+      if(confirm('⚠️ This will delete ALL data (users, employees, attendance, etc.). Continue?')){
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem('__mafs_sync');
+        DATA = loadData(); // This will create fresh empty data
+        await createDefaultAccounts(true); // Force recreate default accounts
+        DATA = loadData();
+        updateDebugPanel();
+        loginMsg.style.color = 'green';
+        loginMsg.textContent = 'Data cleared! Default accounts created. Try logging in now.';
+      }
     };
   }
   
@@ -465,7 +534,17 @@ function accessDenied(){ mainContent.innerHTML=''; const c=document.createElemen
 async function confirmAdminPasswordThen(callback){ const requireConfirm = true; if(!requireConfirm){ callback(); return; } const pwd = prompt('Enter your account password to confirm this action:'); if(pwd === null) return; const ph = await hashSHA256(pwd); if(!APP.currentUser || !APP.currentUser.passwordHash) return alert('No account info found.'); if(ph !== APP.currentUser.passwordHash) return alert('Password incorrect. Action canceled.'); callback(); }
 
 /* create login helper used elsewhere (unchanged) */
-async function createUserAccount(username,password,displayName,role='employee'){ if(DATA.users.find(u=>u.username===username)) throw new Error('username exists'); const ph = await hashSHA256(password); const u = {id:'u_'+Date.now(), username, passwordHash:ph, displayName, role}; DATA.users.push(u); saveData(); return u; }
+async function createUserAccount(username,password,displayName,role='employee'){ 
+  DATA = loadData(); // Always reload fresh DATA before checking
+  if(!DATA.users) DATA.users = [];
+  if(DATA.users.find(u=>u.username===username)) throw new Error('username exists'); 
+  const ph = await hashSHA256(password); 
+  const u = {id:'u_'+Date.now(), username, passwordHash:ph, displayName, role}; 
+  DATA.users.push(u); 
+  saveData(); 
+  DATA = loadData(); // Reload after save to ensure sync
+  return u; 
+}
 
 /* export utils */
 function downloadCSV(rows, filename){ const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
