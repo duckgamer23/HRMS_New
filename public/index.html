@@ -548,95 +548,108 @@ async function init(){
   }
   
   // Show/Hide Signup Form
-  showSignupLink.onclick = (e)=>{
-    e.preventDefault();
-    loginForm.style.display = 'none';
-    signupForm.style.display = 'grid';
-    signupForm.style.gap = '8px';
-    loginTitle.textContent = 'Sign up';
-    loginSubtitle.textContent = 'Create a new account (Super-Admin, Admin, or Employee)';
-    signupMsg.textContent = '';
-  };
+  if(showSignupLink && loginForm && signupForm){
+    showSignupLink.onclick = (e)=>{
+      e.preventDefault();
+      loginForm.style.display = 'none';
+      signupForm.style.display = 'grid';
+      signupForm.style.gridTemplateRows = 'auto';
+      signupForm.style.gap = '8px';
+      if(loginTitle) loginTitle.textContent = 'Sign up';
+      if(loginSubtitle) loginSubtitle.textContent = 'Create a new account (Super-Admin, Admin, or Employee)';
+      if(signupMsg) signupMsg.textContent = '';
+    };
+  }
   
-  showLoginLink.onclick = (e)=>{
-    e.preventDefault();
-    signupForm.style.display = 'none';
-    loginForm.style.display = 'grid';
-    loginTitle.textContent = 'Sign in';
-    loginSubtitle.textContent = 'Sign in as <strong>Employee</strong>, <strong>Admin</strong>, or <strong>Super-Admin</strong>';
-    loginMsg.textContent = '';
-  };
+  if(showLoginLink && loginForm && signupForm){
+    showLoginLink.onclick = (e)=>{
+      e.preventDefault();
+      signupForm.style.display = 'none';
+      loginForm.style.display = 'grid';
+      if(loginTitle) loginTitle.textContent = 'Sign in';
+      if(loginSubtitle) loginSubtitle.innerHTML = 'Sign in as <strong>Employee</strong>, <strong>Admin</strong>, or <strong>Super-Admin</strong>';
+      if(loginMsg) loginMsg.textContent = '';
+    };
+  }
   
-  cancelSignupBtn.onclick = (e)=>{
-    e.preventDefault();
-    showLoginLink.onclick(e);
-    signupUser.value = '';
-    signupPass.value = '';
-    signupPassConfirm.value = '';
-    signupDisplayName.value = '';
-    signupRole.value = 'superadmin';
-  };
+  if(cancelSignupBtn && showLoginLink){
+    cancelSignupBtn.onclick = (e)=>{
+      e.preventDefault();
+      if(showLoginLink && showLoginLink.onclick) showLoginLink.onclick(e);
+      if(signupUser) signupUser.value = '';
+      if(signupPass) signupPass.value = '';
+      if(signupPassConfirm) signupPassConfirm.value = '';
+      if(signupDisplayName) signupDisplayName.value = '';
+      if(signupRole) signupRole.value = 'superadmin';
+    };
+  }
   
   // Signup Button Handler
-  signupBtn.onclick = async ()=>{
-    signupMsg.textContent = '';
-    const username = signupUser.value.trim();
-    const password = signupPass.value;
-    const passwordConfirm = signupPassConfirm.value;
-    const displayName = signupDisplayName.value.trim() || username;
-    const role = signupRole.value;
-    
-    if(!username || !password || !passwordConfirm){
-      signupMsg.textContent = 'Please fill in all fields';
-      return;
-    }
-    
-    if(password !== passwordConfirm){
-      signupMsg.textContent = 'Passwords do not match';
-      return;
-    }
-    
-    if(password.length < 6){
-      signupMsg.textContent = 'Password must be at least 6 characters';
-      return;
-    }
-    
-    try {
-      DATA = await loadData();
-      const existingUser = DATA.users.find(u => u.username === username);
-      if(existingUser){
-        signupMsg.textContent = 'Username already exists. Please choose another.';
+  if(signupBtn && signupUser && signupPass && signupPassConfirm && signupDisplayName && signupRole && signupMsg){
+    signupBtn.onclick = async ()=>{
+      if(!signupMsg) return;
+      signupMsg.textContent = '';
+      const username = signupUser.value.trim();
+      const password = signupPass.value;
+      const passwordConfirm = signupPassConfirm.value;
+      const displayName = signupDisplayName.value.trim() || username;
+      const role = signupRole.value;
+      
+      if(!username || !password || !passwordConfirm){
+        signupMsg.textContent = 'Please fill in all fields';
         return;
       }
       
-      const newUser = await createUserAccount(username, password, displayName, role);
-      console.log('✅ Account created successfully!', newUser);
+      if(password !== passwordConfirm){
+        signupMsg.textContent = 'Passwords do not match';
+        return;
+      }
       
-      signupMsg.style.color = 'green';
-      signupMsg.textContent = `✅ ${role.charAt(0).toUpperCase() + role.slice(1)} account created! Redirecting to login...`;
+      if(password.length < 6){
+        signupMsg.textContent = 'Password must be at least 6 characters';
+        return;
+      }
       
-      // Clear form
-      signupUser.value = '';
-      signupPass.value = '';
-      signupPassConfirm.value = '';
-      signupDisplayName.value = '';
-      signupRole.value = 'superadmin';
-      
-      // Switch back to login form after 2 seconds
-      setTimeout(() => {
-        showLoginLink.onclick({preventDefault: ()=>{}});
-        loginUser.value = username;
-        loginMsg.style.color = 'green';
-        loginMsg.textContent = 'Account created! Please sign in.';
-      }, 2000);
-      
-    } catch(e){
-      console.error('❌ Signup error:', e);
-      signupMsg.textContent = 'Error creating account: ' + e.message;
-    }
-  };
+      try {
+        DATA = await loadData();
+        const existingUser = DATA.users.find(u => u.username === username);
+        if(existingUser){
+          signupMsg.textContent = 'Username already exists. Please choose another.';
+          return;
+        }
+        
+        const newUser = await createUserAccount(username, password, displayName, role);
+        console.log('✅ Account created successfully!', newUser);
+        
+        signupMsg.style.color = 'green';
+        signupMsg.textContent = `✅ ${role.charAt(0).toUpperCase() + role.slice(1)} account created! Redirecting to login...`;
+        
+        // Clear form
+        signupUser.value = '';
+        signupPass.value = '';
+        signupPassConfirm.value = '';
+        signupDisplayName.value = '';
+        signupRole.value = 'superadmin';
+        
+        // Switch back to login form after 2 seconds
+        setTimeout(() => {
+          if(showLoginLink && showLoginLink.onclick) showLoginLink.onclick({preventDefault: ()=>{}});
+          if(loginUser) loginUser.value = username;
+          if(loginMsg){
+            loginMsg.style.color = 'green';
+            loginMsg.textContent = 'Account created! Please sign in.';
+          }
+        }, 2000);
+        
+      } catch(e){
+        console.error('❌ Signup error:', e);
+        signupMsg.textContent = 'Error creating account: ' + e.message;
+      }
+    };
+  }
   
-  loginBtn.onclick = async ()=>{ 
+  if(loginBtn){
+    loginBtn.onclick = async ()=>{ 
     loginMsg.textContent=''; 
     DATA = await loadData(); // Reload DATA before login check
     
@@ -690,7 +703,8 @@ async function init(){
     if(debugContent) debugContent.innerHTML += '<div style="color:green;margin-top:4px;font-weight:700">✅ Login successful! Redirecting...</div>';
     APP.currentUser = {...user}; 
     afterLogin(); 
-  };
+    };
+  }
 }
 // init() is called automatically after DATA loads - see initData() above
 
