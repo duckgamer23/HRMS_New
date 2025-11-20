@@ -115,6 +115,10 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
         <button id="createSuperBtn" class="btn ghost" style="display:none">Create Super-Admin</button>
       </div>
       <div id="loginMsg" class="tiny" style="color:#c0392b"></div>
+      <div style="margin-top:12px;padding:10px;background:rgba(79,70,229,0.05);border-radius:6px;text-align:center">
+        <button id="quickCreateAccountsBtn" class="btn primary" style="width:100%;font-size:12px;padding:8px">🔧 Create Test Accounts (Admin/Employee)</button>
+        <div class="tiny" style="margin-top:6px;color:var(--muted)">Click to create default accounts if login fails</div>
+      </div>
       <div class="tiny" style="margin-top:8px;color:var(--muted);text-align:center">
         Don't have an account? <a href="#" id="showSignupLink" style="color:var(--accent);cursor:pointer;text-decoration:underline">Sign up for Super-Admin</a>
       </div>
@@ -705,6 +709,33 @@ async function init(){
   // Update debug panel
   await updateDebugPanel();
   
+  // Setup quick create accounts button (visible on login page)
+  const quickCreateAccountsBtn = document.getElementById('quickCreateAccountsBtn');
+  if(quickCreateAccountsBtn){
+    quickCreateAccountsBtn.onclick = async ()=>{
+      quickCreateAccountsBtn.disabled = true;
+      quickCreateAccountsBtn.textContent = '⏳ Creating accounts...';
+      try {
+        await createDefaultAccounts(true); // Force recreate
+        DATA = await loadData(true);
+        await updateDebugPanel();
+        loginMsg.style.color = 'green';
+        loginMsg.textContent = '✅ Test accounts created! Username: admin, Password: admin123';
+        quickCreateAccountsBtn.textContent = '✅ Accounts Created!';
+        setTimeout(() => {
+          quickCreateAccountsBtn.textContent = '🔧 Create Test Accounts (Admin/Employee)';
+          quickCreateAccountsBtn.disabled = false;
+        }, 3000);
+      } catch(e) {
+        console.error('Error creating accounts:', e);
+        loginMsg.style.color = '#c0392b';
+        loginMsg.textContent = 'Error creating accounts: ' + e.message;
+        quickCreateAccountsBtn.textContent = '❌ Error - Try Again';
+        quickCreateAccountsBtn.disabled = false;
+      }
+    };
+  }
+  
   // Setup create accounts button
   const createAccountsBtn = document.getElementById('createAccountsBtn');
   if(createAccountsBtn){
@@ -896,8 +927,12 @@ async function init(){
       
       const user = DATA.users.find(x=>x.username===u); 
       if(!user){ 
-        loginMsg.textContent='Invalid credentials - User not found. Click "Create Default Accounts" button first.';
-        if(debugContent) debugContent.innerHTML += `<div style="color:#c0392b;margin-top:4px">❌ User "${u}" not found in system. Available users: ${DATA.users.map(u => u.username).join(', ') || 'none'}</div>`;
+        const availableUsers = DATA.users.map(u => u.username).join(', ') || 'none';
+        loginMsg.textContent=`User "${u}" not found. Available: ${availableUsers}. Click "Create Test Accounts" button above.`;
+        loginMsg.style.color = '#c0392b';
+        if(debugContent) debugContent.innerHTML += `<div style="color:#c0392b;margin-top:4px">❌ User "${u}" not found in system. Available users: ${availableUsers}</div>`;
+        console.log('❌ Login failed - User not found');
+        console.log('📋 Available users:', DATA.users.map(u => ({username: u.username, role: u.role})));
         return;
       } 
       
