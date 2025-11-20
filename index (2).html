@@ -745,10 +745,9 @@ async function init(){
     loginBtn.style.display='inline-block'; 
   }
   
-  // Show/Hide Signup Form
-  if(showSignupLink && loginForm && signupForm){
-    showSignupLink.onclick = (e)=>{
-      e.preventDefault();
+  // Function to show signup form
+  function showSignupForm(){
+    if(loginForm && signupForm){
       loginForm.style.display = 'none';
       signupForm.style.display = 'grid';
       signupForm.style.gridTemplateRows = 'auto';
@@ -756,24 +755,57 @@ async function init(){
       if(loginTitle) loginTitle.textContent = 'Sign up';
       if(loginSubtitle) loginSubtitle.textContent = 'Create a new account (Super-Admin, Admin, or Employee)';
       if(signupMsg) signupMsg.textContent = '';
+      window.location.hash = 'signup';
+    }
+  }
+  
+  // Function to show login form
+  function showLoginForm(){
+    if(loginForm && signupForm){
+      signupForm.style.display = 'none';
+      loginForm.style.display = 'grid';
+      if(loginTitle) loginTitle.textContent = 'Sign in';
+      if(loginSubtitle) loginSubtitle.innerHTML = 'Sign in as <strong>Employee</strong>, <strong>Admin</strong>, or <strong>Super-Admin</strong>';
+      if(loginMsg) loginMsg.textContent = '';
+      window.location.hash = '';
+    }
+  }
+  
+  // Show/Hide Signup Form
+  if(showSignupLink && loginForm && signupForm){
+    showSignupLink.onclick = (e)=>{
+      e.preventDefault();
+      showSignupForm();
     };
   }
   
   if(showLoginLink && loginForm && signupForm){
     showLoginLink.onclick = (e)=>{
       e.preventDefault();
-      signupForm.style.display = 'none';
-      loginForm.style.display = 'grid';
-      if(loginTitle) loginTitle.textContent = 'Sign in';
-      if(loginSubtitle) loginSubtitle.innerHTML = 'Sign in as <strong>Employee</strong>, <strong>Admin</strong>, or <strong>Super-Admin</strong>';
-      if(loginMsg) loginMsg.textContent = '';
+      showLoginForm();
     };
+  }
+  
+  // Check URL hash on page load to show signup form if #signup is present
+  window.addEventListener('DOMContentLoaded', ()=>{
+    if(window.location.hash === '#signup'){
+      setTimeout(() => {
+        showSignupForm();
+      }, 100);
+    }
+  });
+  
+  // Also check hash after init completes
+  if(window.location.hash === '#signup'){
+    setTimeout(() => {
+      showSignupForm();
+    }, 500);
   }
   
   if(cancelSignupBtn && showLoginLink){
     cancelSignupBtn.onclick = (e)=>{
       e.preventDefault();
-      if(showLoginLink && showLoginLink.onclick) showLoginLink.onclick(e);
+      showLoginForm();
       if(signupUser) signupUser.value = '';
       if(signupPass) signupPass.value = '';
       if(signupPassConfirm) signupPassConfirm.value = '';
