@@ -111,7 +111,7 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
       <input id="loginUser" placeholder="Username" class="input"/>
       <input id="loginPass" type="password" placeholder="Password" class="input"/>
       <div style="display:flex;gap:8px">
-        <button id="loginBtn" class="btn primary">Sign in</button>
+        <button id="loginBtn" type="button" class="btn primary">Sign in</button>
         <button id="createSuperBtn" class="btn ghost" style="display:none">Create Super-Admin</button>
       </div>
       <div id="loginMsg" class="tiny" style="color:#c0392b"></div>
@@ -887,7 +887,11 @@ async function init(){
   }
   
   if(loginBtn){
-    loginBtn.onclick = async ()=>{ 
+    console.log('✅ Login button found, attaching handler...');
+    loginBtn.onclick = async (e)=>{ 
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('🔵 Login button clicked!');
     try {
       loginMsg.textContent=''; 
       loginMsg.style.color = '#c0392b';
@@ -896,6 +900,7 @@ async function init(){
       const originalBtnText = loginBtn.textContent;
       loginBtn.textContent = 'Signing in...';
       loginBtn.disabled = true;
+      console.log('⏳ Starting login process...');
       
       // Always load from Firestore on login attempt (for multi-device sync)
       DATA = await loadData(true); // true = sync with Firestore
@@ -964,6 +969,21 @@ async function init(){
       loginBtn.disabled = false;
     }
     };
+    console.log('✅ Login handler attached successfully');
+  } else {
+    console.error('❌ Login button not found!');
+  }
+  
+  // Also add event listener as backup
+  const loginBtnBackup = document.getElementById('loginBtn');
+  if(loginBtnBackup && !loginBtnBackup.onclick){
+    loginBtnBackup.addEventListener('click', async (e) => {
+      e.preventDefault();
+      console.log('🔵 Login button clicked (via addEventListener)!');
+      if(loginBtn && loginBtn.onclick) {
+        loginBtn.onclick(e);
+      }
+    });
   }
 }
 // init() is called automatically after DATA loads - see initData() above
