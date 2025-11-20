@@ -712,28 +712,42 @@ async function init(){
   // Setup quick create accounts button (visible on login page)
   const quickCreateAccountsBtn = document.getElementById('quickCreateAccountsBtn');
   if(quickCreateAccountsBtn){
+    console.log('✅ Setting up quick create accounts button');
     quickCreateAccountsBtn.onclick = async ()=>{
+      console.log('🔧 Quick create button clicked!');
       quickCreateAccountsBtn.disabled = true;
       quickCreateAccountsBtn.textContent = '⏳ Creating accounts...';
       try {
+        console.log('📝 Starting account creation...');
         await createDefaultAccounts(true); // Force recreate
+        console.log('✅ Accounts created, reloading data...');
         DATA = await loadData(true);
+        console.log('✅ Data reloaded, users count:', DATA.users ? DATA.users.length : 0);
         await updateDebugPanel();
-        loginMsg.style.color = 'green';
-        loginMsg.textContent = '✅ Test accounts created! Username: admin, Password: admin123';
+        const loginMsg = document.getElementById('loginMsg');
+        if(loginMsg) {
+          loginMsg.style.color = 'green';
+          loginMsg.textContent = '✅ Test accounts created! Username: admin, Password: admin123';
+        }
         quickCreateAccountsBtn.textContent = '✅ Accounts Created!';
         setTimeout(() => {
           quickCreateAccountsBtn.textContent = '🔧 Create Test Accounts (Admin/Employee)';
           quickCreateAccountsBtn.disabled = false;
         }, 3000);
       } catch(e) {
-        console.error('Error creating accounts:', e);
-        loginMsg.style.color = '#c0392b';
-        loginMsg.textContent = 'Error creating accounts: ' + e.message;
+        console.error('❌ Error creating accounts:', e);
+        console.error('Error stack:', e.stack);
+        const loginMsg = document.getElementById('loginMsg');
+        if(loginMsg) {
+          loginMsg.style.color = '#c0392b';
+          loginMsg.textContent = 'Error creating accounts: ' + e.message;
+        }
         quickCreateAccountsBtn.textContent = '❌ Error - Try Again';
         quickCreateAccountsBtn.disabled = false;
       }
     };
+  } else {
+    console.warn('⚠️ quickCreateAccountsBtn not found!');
   }
   
   // Setup create accounts button
@@ -1135,8 +1149,51 @@ window.MAFS = {
   createEmployee: async (username, password, displayName) => await createTestAccount(username, password, displayName, 'employee')
 };
 
-/* Ensure login button always works - fallback setup */
+/* Ensure buttons always work - fallback setup */
 setTimeout(async () => {
+  console.log('🔧 Setting up fallback button handlers...');
+  
+  // Setup quick create accounts button if not already set
+  const quickCreateAccountsBtn = document.getElementById('quickCreateAccountsBtn');
+  if(quickCreateAccountsBtn && !quickCreateAccountsBtn.onclick) {
+    console.log('⚠️ Quick create button not set up, setting up now...');
+    quickCreateAccountsBtn.onclick = async ()=>{
+      console.log('🔧 Quick create button clicked!');
+      quickCreateAccountsBtn.disabled = true;
+      quickCreateAccountsBtn.textContent = '⏳ Creating accounts...';
+      try {
+        if(typeof createDefaultAccounts === 'function') {
+          await createDefaultAccounts(true);
+          if(typeof loadData === 'function') {
+            DATA = await loadData(true);
+          }
+          const loginMsg = document.getElementById('loginMsg');
+          if(loginMsg) {
+            loginMsg.style.color = 'green';
+            loginMsg.textContent = '✅ Test accounts created! Username: admin, Password: admin123';
+          }
+          quickCreateAccountsBtn.textContent = '✅ Accounts Created!';
+          setTimeout(() => {
+            quickCreateAccountsBtn.textContent = '🔧 Create Test Accounts (Admin/Employee)';
+            quickCreateAccountsBtn.disabled = false;
+          }, 3000);
+        } else {
+          throw new Error('createDefaultAccounts function not found');
+        }
+      } catch(e) {
+        console.error('❌ Error creating accounts:', e);
+        const loginMsg = document.getElementById('loginMsg');
+        if(loginMsg) {
+          loginMsg.style.color = '#c0392b';
+          loginMsg.textContent = 'Error: ' + e.message;
+        }
+        quickCreateAccountsBtn.textContent = '❌ Error - Try Again';
+        quickCreateAccountsBtn.disabled = false;
+      }
+    };
+  }
+  
+  // Setup login button if not already set
   const loginBtn = document.getElementById('loginBtn');
   if(loginBtn && !loginBtn.onclick) {
     console.log('⚠️ Login button not set up, setting up now...');
@@ -1149,7 +1206,7 @@ setTimeout(async () => {
       console.error('❌ Error in fallback init:', e);
     }
   }
-}, 2000);
+}, 1000);
 
 /* initial UI remains driven by first-run and login handlers above */
 </script>
