@@ -115,10 +115,6 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
         <button id="createSuperBtn" class="btn ghost" style="display:none">Create Super-Admin</button>
       </div>
       <div id="loginMsg" class="tiny" style="color:#c0392b"></div>
-      <div style="margin-top:12px;padding:10px;background:rgba(79,70,229,0.05);border-radius:6px;text-align:center">
-        <button id="quickCreateAccountsBtn" class="btn primary" style="width:100%;font-size:12px;padding:8px">🔧 Create Test Accounts (Admin/Employee)</button>
-        <div class="tiny" style="margin-top:6px;color:var(--muted)">Click to create default accounts if login fails</div>
-      </div>
       <div class="tiny" style="margin-top:8px;color:var(--muted);text-align:center">
         Don't have an account? <a href="#" id="showSignupLink" style="color:var(--accent);cursor:pointer;text-decoration:underline">Sign up for Super-Admin</a>
       </div>
@@ -211,7 +207,7 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
    - Local storage sync + notifications remain
 */
 
-const STORAGE_KEY = 'mayura_hrms_data_v1';
+const STORAGE_KEY = 'mafs_hrms_att_once_v1';
 const FIRESTORE_DOC_ID = 'hrms_data';
 
 let firestoreReady = false;
@@ -441,27 +437,16 @@ async function saveDataToFirestore(data){
 }
 
 // Save data function (saves to both Firestore and localStorage)
-// IMPORTANT: Always loads existing data first to prevent creating new storage
 async function saveData(waitForFirestore = false){
-  // CRITICAL: Always load existing data first to merge, not overwrite
+  // Ensure DATA exists
   if(!DATA){
-    console.log('⚠️ DATA is null, loading existing data first...');
-    DATA = await loadData(false); // Load without syncing to avoid loops
+    console.error('❌ Cannot save - DATA is null or undefined');
+    DATA = await loadData(false);
   }
-  
-  // Ensure DATA structure exists
-  if(!DATA.users) DATA.users = [];
-  if(!DATA.employees) DATA.employees = [];
-  if(!DATA.attendance) DATA.attendance = {};
-  if(!DATA.leaves) DATA.leaves = [];
-  if(!DATA.payslips) DATA.payslips = [];
-  if(!DATA.settings) DATA.settings = {companyName:'MAYURA Vahan Private Limited',currency:'₹'};
-  if(!DATA.notifications) DATA.notifications = [];
-  if(!DATA.announcements) DATA.announcements = '';
   
   // Save to localStorage immediately (fast, local backup)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
-  console.log('💾 Saved to localStorage (single storage: ' + STORAGE_KEY + ')');
+  console.log('💾 Saved to localStorage');
   
   // ALWAYS save to Firestore (critical for multi-device sync)
   if(waitForFirestore){
@@ -720,47 +705,6 @@ async function init(){
   // Update debug panel
   await updateDebugPanel();
   
-  // Setup quick create accounts button (visible on login page)
-  const quickCreateAccountsBtn = document.getElementById('quickCreateAccountsBtn');
-  if(quickCreateAccountsBtn){
-    console.log('✅ Setting up quick create accounts button');
-    quickCreateAccountsBtn.onclick = async ()=>{
-      console.log('🔧 Quick create button clicked!');
-      quickCreateAccountsBtn.disabled = true;
-      quickCreateAccountsBtn.textContent = '⏳ Creating accounts...';
-      try {
-        console.log('📝 Starting account creation...');
-        await createDefaultAccounts(true); // Force recreate
-        console.log('✅ Accounts created, reloading data...');
-        DATA = await loadData(true);
-        console.log('✅ Data reloaded, users count:', DATA.users ? DATA.users.length : 0);
-        await updateDebugPanel();
-        const loginMsg = document.getElementById('loginMsg');
-        if(loginMsg) {
-          loginMsg.style.color = 'green';
-          loginMsg.textContent = '✅ Test accounts created! Username: admin, Password: admin123';
-        }
-        quickCreateAccountsBtn.textContent = '✅ Accounts Created!';
-        setTimeout(() => {
-          quickCreateAccountsBtn.textContent = '🔧 Create Test Accounts (Admin/Employee)';
-          quickCreateAccountsBtn.disabled = false;
-        }, 3000);
-      } catch(e) {
-        console.error('❌ Error creating accounts:', e);
-        console.error('Error stack:', e.stack);
-        const loginMsg = document.getElementById('loginMsg');
-        if(loginMsg) {
-          loginMsg.style.color = '#c0392b';
-          loginMsg.textContent = 'Error creating accounts: ' + e.message;
-        }
-        quickCreateAccountsBtn.textContent = '❌ Error - Try Again';
-        quickCreateAccountsBtn.disabled = false;
-      }
-    };
-  } else {
-    console.warn('⚠️ quickCreateAccountsBtn not found!');
-  }
-  
   // Setup create accounts button
   const createAccountsBtn = document.getElementById('createAccountsBtn');
   if(createAccountsBtn){
@@ -768,11 +712,8 @@ async function init(){
       await createDefaultAccounts(true); // Force recreate
       DATA = await loadData();
       await updateDebugPanel();
-      const loginMsg = document.getElementById('loginMsg');
-      if(loginMsg) {
-        loginMsg.style.color = 'green';
-        loginMsg.textContent = 'Default accounts created/updated! Try logging in now.';
-      }
+      loginMsg.style.color = 'green';
+      loginMsg.textContent = 'Default accounts created/updated! Try logging in now.';
     };
   }
   
@@ -787,11 +728,8 @@ async function init(){
         await createDefaultAccounts(true); // Force recreate default accounts
         DATA = await loadData();
         await updateDebugPanel();
-        const loginMsg = document.getElementById('loginMsg');
-        if(loginMsg) {
-          loginMsg.style.color = 'green';
-          loginMsg.textContent = 'Data cleared! Default accounts created. Try logging in now.';
-        }
+        loginMsg.style.color = 'green';
+        loginMsg.textContent = 'Data cleared! Default accounts created. Try logging in now.';
       }
     };
   }
@@ -800,24 +738,7 @@ async function init(){
     firstRunNote.style.display = 'block';
     createSuperBtn.style.display = 'inline-block';
     loginBtn.style.display = 'none';
-    createSuperBtn.onclick = async ()=>{
-      const u = loginUser.value.trim();
-      const p = loginPass.value;
-      if(!u||!p){
-        loginMsg.textContent='Enter username & password';
-        return;
-      }
-      const ph = await hashSHA256(p);
-      DATA.users.push({id:'u_'+Date.now(), username:u, passwordHash:ph, displayName:u, role:'superadmin'});
-      await saveData(true);
-      DATA = await loadData(true);
-      await updateDebugPanel();
-      loginMsg.style.color='green';
-      loginMsg.textContent='Super-Admin created and saved to cloud! Sign in.';
-      createSuperBtn.style.display='none';
-      loginBtn.style.display='inline-block';
-      firstRunNote.style.display='none';
-    };
+    createSuperBtn.onclick = async ()=>{ const u = loginUser.value.trim(); const p = loginPass.value; if(!u||!p){ loginMsg.textContent='Enter username & password'; return; } const ph = await hashSHA256(p); DATA.users.push({id:'u_'+Date.now(), username:u, passwordHash:ph, displayName:u, role:'superadmin'}); await saveData(true); // Wait for Firestore save DATA = await loadData(true); // Reload from Firestore await updateDebugPanel(); loginMsg.style.color='green'; loginMsg.textContent='Super-Admin created and saved to cloud! Sign in.'; createSuperBtn.style.display='none'; loginBtn.style.display='inline-block'; firstRunNote.style.display='none'; };
   } else { 
     firstRunNote.style.display='none'; 
     createSuperBtn.style.display='none'; 
@@ -888,17 +809,8 @@ async function init(){
       }
       
       try {
-        // CRITICAL: Load existing data from single storage first (no duplicates)
-        console.log('🔍 Loading existing data from single storage before signup...');
-        DATA = await loadData(true); // Load from single storage (Firestore/localStorage)
-        
-        // Ensure DATA structure exists
-        if(!DATA) {
-          console.log('⚠️ DATA is null, initializing structure...');
-          DATA = {users:[],employees:[],attendance:{},leaves:[],payslips:[],announcements:'',settings:{companyName:'MAYURA Vahan Private Limited',currency:'₹'},notifications:[]};
-        }
-        if(!DATA.users) DATA.users = [];
-        
+        // Load from Firestore first to get latest data
+        DATA = await loadData(true); // true = sync with Firestore
         const existingUser = DATA.users.find(u => u.username === username);
         if(existingUser){
           signupMsg.textContent = 'Username already exists. Please choose another.';
@@ -908,10 +820,10 @@ async function init(){
         const newUser = await createUserAccount(username, password, displayName, role);
         console.log('✅ Account created successfully!', newUser);
         
-        // Save to single storage (both Firestore and localStorage)
+        // Explicitly save to Firestore and wait for completion
         await saveData(true); // true = wait for Firestore save
         
-        // Reload from single storage to ensure sync
+        // Reload from Firestore to ensure sync
         DATA = await loadData(true);
         
         signupMsg.style.color = 'green';
@@ -944,80 +856,45 @@ async function init(){
   
   if(loginBtn){
     loginBtn.onclick = async ()=>{ 
-    try {
-      loginMsg.textContent=''; 
-      loginMsg.style.color='#c0392b';
-      
-      // CRITICAL: Always load existing data first (single storage, no duplicates)
-      console.log('🔍 Loading existing data from single storage...');
-      DATA = await loadData(true); // Load from Firestore first, then localStorage
-      
-      // Ensure DATA structure exists
-      if(!DATA) {
-        console.error('❌ DATA is still null after loadData');
-        loginMsg.textContent = 'Error: Could not load data. Please refresh the page.';
-        return;
-      }
-      
-      if(!DATA.users) {
-        console.log('⚠️ DATA.users is missing, initializing...');
-        DATA.users = [];
-      }
-      
-      if(!DATA || !DATA.users) {
-        loginMsg.textContent='Error: Data not loaded. Please refresh the page.';
-        console.error('❌ DATA or DATA.users is null:', DATA);
-        return;
-      }
-      
-      const u = loginUser.value.trim(); 
-      const p = loginPass.value; 
-      
-      // Update debug panel with login attempt
-      const debugContent = document.getElementById('debugContent');
-      if(debugContent){
-        debugContent.innerHTML += `<div style="margin-top:6px;padding:6px;background:rgba(79,70,229,0.1);border-radius:4px"><strong>Login attempt:</strong> ${u ? u : '(empty)'}</div>`;
-        debugContent.innerHTML += `<div style="color:blue;margin-top:4px">📊 Total users in system: ${DATA.users.length}</div>`;
-      }
-      
-      if(!u||!p){ 
-        loginMsg.textContent='Enter username & password'; 
-        if(debugContent) debugContent.innerHTML += '<div style="color:#c0392b;margin-top:4px">❌ Empty username or password</div>';
-        return;
-      } 
-      
-      console.log('🔍 Looking for user:', u);
-      console.log('📋 Available users:', DATA.users.map(u => u.username));
-      
-      const user = DATA.users.find(x=>x.username===u); 
-      if(!user){ 
-        const availableUsers = DATA.users.map(u => u.username).join(', ') || 'none';
-        loginMsg.textContent=`User "${u}" not found. Available: ${availableUsers}. Click "Create Test Accounts" button above.`;
-        loginMsg.style.color = '#c0392b';
-        if(debugContent) debugContent.innerHTML += `<div style="color:#c0392b;margin-top:4px">❌ User "${u}" not found in system. Available users: ${availableUsers}</div>`;
-        console.log('❌ Login failed - User not found');
-        console.log('📋 Available users:', DATA.users.map(u => ({username: u.username, role: u.role})));
-        return;
-      } 
-      
-      if(debugContent) debugContent.innerHTML += `<div style="color:green;margin-top:4px">✅ User found: ${user.username} (${user.role})</div>`;
-      
-      const ph = await hashSHA256(p); 
-      
-      if(ph !== user.passwordHash){ 
-        loginMsg.textContent='Invalid credentials - Wrong password'; 
-        if(debugContent) debugContent.innerHTML += '<div style="color:#c0392b;margin-top:4px">❌ Password incorrect</div>';
-        return;
-      } 
-      
-      if(debugContent) debugContent.innerHTML += '<div style="color:green;margin-top:4px;font-weight:700">✅ Login successful! Redirecting...</div>';
-      APP.currentUser = {...user}; 
-      afterLogin(); 
-    } catch(e) {
-      console.error('❌ Login error:', e);
-      loginMsg.textContent = 'Login error: ' + e.message;
-      loginMsg.style.color = '#c0392b';
+    loginMsg.textContent=''; 
+    // Always load from Firestore on login attempt (for multi-device sync)
+    DATA = await loadData(true); // true = sync with Firestore
+    
+    const u = loginUser.value.trim(); 
+    const p = loginPass.value; 
+    
+    // Update debug panel with login attempt
+    const debugContent = document.getElementById('debugContent');
+    if(debugContent){
+      debugContent.innerHTML += `<div style="margin-top:6px;padding:6px;background:rgba(79,70,229,0.1);border-radius:4px"><strong>Login attempt:</strong> ${u ? u : '(empty)'}</div>`;
     }
+    
+    if(!u||!p){ 
+      loginMsg.textContent='Enter username & password'; 
+      if(debugContent) debugContent.innerHTML += '<div style="color:#c0392b;margin-top:4px">❌ Empty username or password</div>';
+      return;
+    } 
+    
+    const user = DATA.users.find(x=>x.username===u); 
+    if(!user){ 
+      loginMsg.textContent='Invalid credentials - User not found'; 
+      if(debugContent) debugContent.innerHTML += `<div style="color:#c0392b;margin-top:4px">❌ User "${u}" not found in system</div>`;
+      return;
+    } 
+    
+    if(debugContent) debugContent.innerHTML += `<div style="color:green;margin-top:4px">✅ User found: ${user.username} (${user.role})</div>`;
+    
+    const ph = await hashSHA256(p); 
+    
+    if(ph !== user.passwordHash){ 
+      loginMsg.textContent='Invalid credentials - Wrong password'; 
+      if(debugContent) debugContent.innerHTML += '<div style="color:#c0392b;margin-top:4px">❌ Password incorrect</div>';
+      return;
+    } 
+    
+    if(debugContent) debugContent.innerHTML += '<div style="color:green;margin-top:4px;font-weight:700">✅ Login successful! Redirecting...</div>';
+    APP.currentUser = {...user}; 
+    afterLogin(); 
     };
   }
 }
@@ -1118,34 +995,16 @@ function getEmployeeIdFromUser(user){ if(!user) return null; const byEmail = DAT
 function accessDenied(){ mainContent.innerHTML=''; const c=document.createElement('div'); c.className='card'; c.innerHTML = '<h3 style="margin-top:0">Access denied</h3><div class="tiny muted">You do not have permission.</div>'; mainContent.appendChild(c); }
 async function confirmAdminPasswordThen(callback){ const requireConfirm = true; if(!requireConfirm){ callback(); return; } const pwd = prompt('Enter your account password to confirm this action:'); if(pwd === null) return; const ph = await hashSHA256(pwd); if(!APP.currentUser || !APP.currentUser.passwordHash) return alert('No account info found.'); if(ph !== APP.currentUser.passwordHash) return alert('Password incorrect. Action canceled.'); callback(); }
 
-/* create login helper - uses single storage, no duplicates */
+/* create login helper used elsewhere (unchanged) */
 async function createUserAccount(username,password,displayName,role='employee'){ 
-  // CRITICAL: Load from single storage first (don't create new data)
-  console.log('🔍 Loading existing data from single storage before creating account...');
-  DATA = await loadData(true); // Load from single storage (Firestore/localStorage)
-  
-  // Ensure DATA structure exists
-  if(!DATA) {
-    console.log('⚠️ DATA is null, initializing structure...');
-    DATA = {users:[],employees:[],attendance:{},leaves:[],payslips:[],announcements:'',settings:{companyName:'MAYURA Vahan Private Limited',currency:'₹'},notifications:[]};
-  }
+  DATA = await loadData(true); // Always reload fresh DATA from Firestore before checking
   if(!DATA.users) DATA.users = [];
-  
-  // Check if username already exists
-  if(DATA.users.find(u=>u.username===username)) {
-    throw new Error('username exists');
-  }
-  
-  // Create new user
+  if(DATA.users.find(u=>u.username===username)) throw new Error('username exists'); 
   const ph = await hashSHA256(password); 
   const u = {id:'u_'+Date.now(), username, passwordHash:ph, displayName, role}; 
   DATA.users.push(u); 
-  
-  // Save to single storage (both Firestore and localStorage)
   await saveData(true); // Wait for Firestore save to complete
-  
-  // Reload from single storage to ensure sync
-  DATA = await loadData(true);
+  DATA = await loadData(true); // Reload from Firestore after save to ensure sync
   return u; 
 }
 
@@ -1216,136 +1075,6 @@ window.MAFS = {
   createSuperAdmin: async (username, password, displayName) => await createTestAccount(username, password, displayName, 'superadmin'),
   createEmployee: async (username, password, displayName) => await createTestAccount(username, password, displayName, 'employee')
 };
-
-/* Ensure buttons always work - fallback setup with error handling */
-function setupFallbackHandlers(){
-  console.log('🔧 Setting up fallback button handlers...');
-  
-  // Setup quick create accounts button - ALWAYS set up, even if init() hasn't run
-  const quickCreateAccountsBtn = document.getElementById('quickCreateAccountsBtn');
-  if(quickCreateAccountsBtn) {
-    quickCreateAccountsBtn.onclick = async function(){
-      console.log('🔧 Quick create button clicked!');
-      this.disabled = true;
-      this.textContent = '⏳ Creating accounts...';
-      const loginMsg = document.getElementById('loginMsg');
-      
-      try {
-        if(typeof loadData === 'function') {
-          DATA = await loadData(true);
-        } else {
-          throw new Error('loadData function not available');
-        }
-        
-        if(typeof createDefaultAccounts === 'function') {
-          await createDefaultAccounts(true);
-          DATA = await loadData(true);
-          
-          if(loginMsg) {
-            loginMsg.style.color = 'green';
-            loginMsg.textContent = '✅ Test accounts created! Username: admin, Password: admin123';
-          }
-          this.textContent = '✅ Accounts Created!';
-          setTimeout(() => {
-            this.textContent = '🔧 Create Test Accounts (Admin/Employee)';
-            this.disabled = false;
-          }, 3000);
-        } else {
-          throw new Error('createDefaultAccounts function not available');
-        }
-      } catch(e) {
-        console.error('❌ Error creating accounts:', e);
-        if(loginMsg) {
-          loginMsg.style.color = '#c0392b';
-          loginMsg.textContent = 'Error: ' + (e.message || 'Unknown error');
-        }
-        this.textContent = '❌ Error - Try Again';
-        this.disabled = false;
-      }
-    };
-    console.log('✅ Quick create button handler set up');
-  }
-  
-  // Setup login button - ALWAYS set up
-  const loginBtn = document.getElementById('loginBtn');
-  if(loginBtn) {
-    loginBtn.onclick = async function(){
-      console.log('🔧 Login button clicked!');
-      const loginMsg = document.getElementById('loginMsg');
-      const loginUser = document.getElementById('loginUser');
-      const loginPass = document.getElementById('loginPass');
-      
-      if(!loginMsg || !loginUser || !loginPass) {
-        alert('Error: Login form elements not found');
-        return;
-      }
-      
-      loginMsg.textContent = '';
-      loginMsg.style.color = '#c0392b';
-      
-      try {
-        if(typeof loadData === 'function') {
-          DATA = await loadData(true);
-        } else {
-          throw new Error('loadData function not available');
-        }
-        
-        if(!DATA || !DATA.users) {
-          loginMsg.textContent = 'Error: Data not loaded. Click "Create Test Accounts" first.';
-          return;
-        }
-        
-        const u = loginUser.value.trim();
-        const p = loginPass.value;
-        
-        if(!u || !p) {
-          loginMsg.textContent = 'Enter username & password';
-          return;
-        }
-        
-        const user = DATA.users.find(x => x.username === u);
-        if(!user) {
-          loginMsg.textContent = `User "${u}" not found. Click "Create Test Accounts" button first.`;
-          return;
-        }
-        
-        if(typeof hashSHA256 === 'function') {
-          const ph = await hashSHA256(p);
-          if(ph !== user.passwordHash) {
-            loginMsg.textContent = 'Invalid password';
-            return;
-          }
-          
-          if(typeof APP !== 'undefined') {
-            APP.currentUser = {...user};
-          }
-          if(typeof afterLogin === 'function') {
-            afterLogin();
-          } else {
-            alert('Login successful but afterLogin function not found');
-          }
-        } else {
-          throw new Error('hashSHA256 function not available');
-        }
-      } catch(e) {
-        console.error('❌ Login error:', e);
-        loginMsg.textContent = 'Login error: ' + (e.message || 'Unknown error');
-      }
-    };
-    console.log('✅ Login button handler set up');
-  }
-}
-
-// Set up handlers when DOM is ready
-if(document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', setupFallbackHandlers);
-} else {
-  setupFallbackHandlers();
-}
-
-// Retry after delay to ensure buttons are set up
-setTimeout(setupFallbackHandlers, 1000);
-setTimeout(setupFallbackHandlers, 3000);
 
 /* initial UI remains driven by first-run and login handlers above */
 </script>
