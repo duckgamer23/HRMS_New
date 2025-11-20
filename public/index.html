@@ -211,7 +211,7 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
    - Local storage sync + notifications remain
 */
 
-const STORAGE_KEY = 'mafs_hrms_att_once_v1';
+const STORAGE_KEY = 'mayura_hrms_data_v1';
 const FIRESTORE_DOC_ID = 'hrms_data';
 
 let firestoreReady = false;
@@ -441,16 +441,27 @@ async function saveDataToFirestore(data){
 }
 
 // Save data function (saves to both Firestore and localStorage)
+// IMPORTANT: Always loads existing data first to prevent creating new storage
 async function saveData(waitForFirestore = false){
-  // Ensure DATA exists
+  // CRITICAL: Always load existing data first to merge, not overwrite
   if(!DATA){
-    console.error('❌ Cannot save - DATA is null or undefined');
-    DATA = await loadData(false);
+    console.log('⚠️ DATA is null, loading existing data first...');
+    DATA = await loadData(false); // Load without syncing to avoid loops
   }
+  
+  // Ensure DATA structure exists
+  if(!DATA.users) DATA.users = [];
+  if(!DATA.employees) DATA.employees = [];
+  if(!DATA.attendance) DATA.attendance = {};
+  if(!DATA.leaves) DATA.leaves = [];
+  if(!DATA.payslips) DATA.payslips = [];
+  if(!DATA.settings) DATA.settings = {companyName:'MAYURA Vahan Private Limited',currency:'₹'};
+  if(!DATA.notifications) DATA.notifications = [];
+  if(!DATA.announcements) DATA.announcements = '';
   
   // Save to localStorage immediately (fast, local backup)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
-  console.log('💾 Saved to localStorage');
+  console.log('💾 Saved to localStorage (single storage: ' + STORAGE_KEY + ')');
   
   // ALWAYS save to Firestore (critical for multi-device sync)
   if(waitForFirestore){
@@ -928,14 +939,21 @@ async function init(){
       loginMsg.textContent=''; 
       loginMsg.style.color='#c0392b';
       
-      // Ensure DATA is loaded
+      // CRITICAL: Always load existing data first (single storage, no duplicates)
+      console.log('🔍 Loading existing data from single storage...');
+      DATA = await loadData(true); // Load from Firestore first, then localStorage
+      
+      // Ensure DATA structure exists
       if(!DATA) {
-        console.log('⚠️ DATA not loaded, loading now...');
-        DATA = await loadData(true);
+        console.error('❌ DATA is still null after loadData');
+        loginMsg.textContent = 'Error: Could not load data. Please refresh the page.';
+        return;
       }
       
-      // Always load from Firestore on login attempt (for multi-device sync)
-      DATA = await loadData(true); // true = sync with Firestore
+      if(!DATA.users) {
+        console.log('⚠️ DATA.users is missing, initializing...');
+        DATA.users = [];
+      }
       
       if(!DATA || !DATA.users) {
         loginMsg.textContent='Error: Data not loaded. Please refresh the page.';
@@ -1091,16 +1109,34 @@ function getEmployeeIdFromUser(user){ if(!user) return null; const byEmail = DAT
 function accessDenied(){ mainContent.innerHTML=''; const c=document.createElement('div'); c.className='card'; c.innerHTML = '<h3 style="margin-top:0">Access denied</h3><div class="tiny muted">You do not have permission.</div>'; mainContent.appendChild(c); }
 async function confirmAdminPasswordThen(callback){ const requireConfirm = true; if(!requireConfirm){ callback(); return; } const pwd = prompt('Enter your account password to confirm this action:'); if(pwd === null) return; const ph = await hashSHA256(pwd); if(!APP.currentUser || !APP.currentUser.passwordHash) return alert('No account info found.'); if(ph !== APP.currentUser.passwordHash) return alert('Password incorrect. Action canceled.'); callback(); }
 
-/* create login helper used elsewhere (unchanged) */
+/* create login helper - uses single storage, no duplicates */
 async function createUserAccount(username,password,displayName,role='employee'){ 
-  DATA = await loadData(true); // Always reload fresh DATA from Firestore before checking
+  // CRITICAL: Load from single storage first (don't create new data)
+  console.log('🔍 Loading existing data from single storage before creating account...');
+  DATA = await loadData(true); // Load from single storage (Firestore/localStorage)
+  
+  // Ensure DATA structure exists
+  if(!DATA) {
+    console.log('⚠️ DATA is null, initializing structure...');
+    DATA = {users:[],employees:[],attendance:{},leaves:[],payslips:[],announcements:'',settings:{companyName:'MAYURA Vahan Private Limited',currency:'₹'},notifications:[]};
+  }
   if(!DATA.users) DATA.users = [];
-  if(DATA.users.find(u=>u.username===username)) throw new Error('username exists'); 
+  
+  // Check if username already exists
+  if(DATA.users.find(u=>u.username===username)) {
+    throw new Error('username exists');
+  }
+  
+  // Create new user
   const ph = await hashSHA256(password); 
   const u = {id:'u_'+Date.now(), username, passwordHash:ph, displayName, role}; 
   DATA.users.push(u); 
+  
+  // Save to single storage (both Firestore and localStorage)
   await saveData(true); // Wait for Firestore save to complete
-  DATA = await loadData(true); // Reload from Firestore after save to ensure sync
+  
+  // Reload from single storage to ensure sync
+  DATA = await loadData(true);
   return u; 
 }
 
