@@ -140,7 +140,7 @@ body{margin:0;background:linear-gradient(180deg,var(--bg),#eef5fb);color:var(--t
         Already have an account? <a href="#" id="showLoginLink" style="color:var(--accent);cursor:pointer;text-decoration:underline">Sign in</a>
       </div>
     </div>
-      <div id="debugPanel" style="margin-top:12px;padding:10px;background:rgba(79,70,229,0.05);border-radius:6px;font-size:11px;display:none">
+      <div id="debugPanel" style="margin-top:12px;padding:10px;background:rgba(79,70,229,0.05);border-radius:6px;font-size:11px;display:block">
         <div style="font-weight:700;margin-bottom:6px">🔍 Debug Info:</div>
         <div id="debugContent"></div>
         <div style="display:flex;gap:6px;margin-top:8px">
@@ -888,45 +888,81 @@ async function init(){
   
   if(loginBtn){
     loginBtn.onclick = async ()=>{ 
-    loginMsg.textContent=''; 
-    // Always load from Firestore on login attempt (for multi-device sync)
-    DATA = await loadData(true); // true = sync with Firestore
-    
-    const u = loginUser.value.trim(); 
-    const p = loginPass.value; 
-    
-    // Update debug panel with login attempt
-    const debugContent = document.getElementById('debugContent');
-    if(debugContent){
-      debugContent.innerHTML += `<div style="margin-top:6px;padding:6px;background:rgba(79,70,229,0.1);border-radius:4px"><strong>Login attempt:</strong> ${u ? u : '(empty)'}</div>`;
+    try {
+      loginMsg.textContent=''; 
+      loginMsg.style.color = '#c0392b';
+      
+      // Show loading state
+      const originalBtnText = loginBtn.textContent;
+      loginBtn.textContent = 'Signing in...';
+      loginBtn.disabled = true;
+      
+      // Always load from Firestore on login attempt (for multi-device sync)
+      DATA = await loadData(true); // true = sync with Firestore
+      
+      const u = loginUser.value.trim(); 
+      const p = loginPass.value; 
+      
+      // Update debug panel with login attempt
+      const debugContent = document.getElementById('debugContent');
+      if(debugContent){
+        debugContent.innerHTML += `<div style="margin-top:6px;padding:6px;background:rgba(79,70,229,0.1);border-radius:4px"><strong>Login attempt:</strong> ${u ? u : '(empty)'}</div>`;
+      }
+      
+      if(!u||!p){ 
+        loginMsg.textContent='Enter username & password'; 
+        if(debugContent) debugContent.innerHTML += '<div style="color:#c0392b;margin-top:4px">❌ Empty username or password</div>';
+        loginBtn.textContent = originalBtnText;
+        loginBtn.disabled = false;
+        return;
+      } 
+      
+      // Check if DATA.users exists
+      if(!DATA || !DATA.users || DATA.users.length === 0){
+        loginMsg.textContent='No accounts found. Please click "Create Default Accounts" button below.';
+        if(debugContent) debugContent.innerHTML += '<div style="color:#c0392b;margin-top:4px">❌ No users found in system. Total users: 0</div>';
+        loginBtn.textContent = originalBtnText;
+        loginBtn.disabled = false;
+        return;
+      }
+      
+      if(debugContent) debugContent.innerHTML += `<div style="color:blue;margin-top:4px">📊 Total users in system: ${DATA.users.length}</div>`;
+      
+      const user = DATA.users.find(x=>x.username===u); 
+      if(!user){ 
+        loginMsg.textContent='Invalid credentials - User not found. Available users: ' + DATA.users.map(u => u.username).join(', '); 
+        if(debugContent) debugContent.innerHTML += `<div style="color:#c0392b;margin-top:4px">❌ User "${u}" not found in system. Available: ${DATA.users.map(u => u.username).join(', ')}</div>`;
+        loginBtn.textContent = originalBtnText;
+        loginBtn.disabled = false;
+        return;
+      } 
+      
+      if(debugContent) debugContent.innerHTML += `<div style="color:green;margin-top:4px">✅ User found: ${user.username} (${user.role})</div>`;
+      
+      const ph = await hashSHA256(p); 
+      
+      if(ph !== user.passwordHash){ 
+        loginMsg.textContent='Invalid credentials - Wrong password'; 
+        if(debugContent) debugContent.innerHTML += '<div style="color:#c0392b;margin-top:4px">❌ Password incorrect</div>';
+        loginBtn.textContent = originalBtnText;
+        loginBtn.disabled = false;
+        return;
+      } 
+      
+      if(debugContent) debugContent.innerHTML += '<div style="color:green;margin-top:4px;font-weight:700">✅ Login successful! Redirecting...</div>';
+      loginMsg.style.color = 'green';
+      loginMsg.textContent = 'Login successful! Redirecting...';
+      
+      APP.currentUser = {...user}; 
+      afterLogin(); 
+    } catch(error) {
+      console.error('Login error:', error);
+      loginMsg.textContent = 'Error during login: ' + error.message;
+      const debugContent = document.getElementById('debugContent');
+      if(debugContent) debugContent.innerHTML += `<div style="color:#c0392b;margin-top:4px">❌ Error: ${error.message}</div>`;
+      loginBtn.textContent = 'Sign in';
+      loginBtn.disabled = false;
     }
-    
-    if(!u||!p){ 
-      loginMsg.textContent='Enter username & password'; 
-      if(debugContent) debugContent.innerHTML += '<div style="color:#c0392b;margin-top:4px">❌ Empty username or password</div>';
-      return;
-    } 
-    
-    const user = DATA.users.find(x=>x.username===u); 
-    if(!user){ 
-      loginMsg.textContent='Invalid credentials - User not found'; 
-      if(debugContent) debugContent.innerHTML += `<div style="color:#c0392b;margin-top:4px">❌ User "${u}" not found in system</div>`;
-      return;
-    } 
-    
-    if(debugContent) debugContent.innerHTML += `<div style="color:green;margin-top:4px">✅ User found: ${user.username} (${user.role})</div>`;
-    
-    const ph = await hashSHA256(p); 
-    
-    if(ph !== user.passwordHash){ 
-      loginMsg.textContent='Invalid credentials - Wrong password'; 
-      if(debugContent) debugContent.innerHTML += '<div style="color:#c0392b;margin-top:4px">❌ Password incorrect</div>';
-      return;
-    } 
-    
-    if(debugContent) debugContent.innerHTML += '<div style="color:green;margin-top:4px;font-weight:700">✅ Login successful! Redirecting...</div>';
-    APP.currentUser = {...user}; 
-    afterLogin(); 
     };
   }
 }
