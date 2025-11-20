@@ -757,8 +757,11 @@ async function init(){
       await createDefaultAccounts(true); // Force recreate
       DATA = await loadData();
       await updateDebugPanel();
-      loginMsg.style.color = 'green';
-      loginMsg.textContent = 'Default accounts created/updated! Try logging in now.';
+      const loginMsg = document.getElementById('loginMsg');
+      if(loginMsg) {
+        loginMsg.style.color = 'green';
+        loginMsg.textContent = 'Default accounts created/updated! Try logging in now.';
+      }
     };
   }
   
@@ -773,8 +776,11 @@ async function init(){
         await createDefaultAccounts(true); // Force recreate default accounts
         DATA = await loadData();
         await updateDebugPanel();
-        loginMsg.style.color = 'green';
-        loginMsg.textContent = 'Data cleared! Default accounts created. Try logging in now.';
+        const loginMsg = document.getElementById('loginMsg');
+        if(loginMsg) {
+          loginMsg.style.color = 'green';
+          loginMsg.textContent = 'Data cleared! Default accounts created. Try logging in now.';
+        }
       }
     };
   }
