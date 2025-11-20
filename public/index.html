@@ -888,8 +888,17 @@ async function init(){
       }
       
       try {
-        // Load from Firestore first to get latest data
-        DATA = await loadData(true); // true = sync with Firestore
+        // CRITICAL: Load existing data from single storage first (no duplicates)
+        console.log('🔍 Loading existing data from single storage before signup...');
+        DATA = await loadData(true); // Load from single storage (Firestore/localStorage)
+        
+        // Ensure DATA structure exists
+        if(!DATA) {
+          console.log('⚠️ DATA is null, initializing structure...');
+          DATA = {users:[],employees:[],attendance:{},leaves:[],payslips:[],announcements:'',settings:{companyName:'MAYURA Vahan Private Limited',currency:'₹'},notifications:[]};
+        }
+        if(!DATA.users) DATA.users = [];
+        
         const existingUser = DATA.users.find(u => u.username === username);
         if(existingUser){
           signupMsg.textContent = 'Username already exists. Please choose another.';
@@ -899,10 +908,10 @@ async function init(){
         const newUser = await createUserAccount(username, password, displayName, role);
         console.log('✅ Account created successfully!', newUser);
         
-        // Explicitly save to Firestore and wait for completion
+        // Save to single storage (both Firestore and localStorage)
         await saveData(true); // true = wait for Firestore save
         
-        // Reload from Firestore to ensure sync
+        // Reload from single storage to ensure sync
         DATA = await loadData(true);
         
         signupMsg.style.color = 'green';
