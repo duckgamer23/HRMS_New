@@ -1217,64 +1217,151 @@ window.MAFS = {
   createEmployee: async (username, password, displayName) => await createTestAccount(username, password, displayName, 'employee')
 };
 
-/* Ensure buttons always work - fallback setup */
-setTimeout(async () => {
+/* Ensure buttons always work - fallback setup with error handling */
+(function setupFallbackHandlers(){
   console.log('🔧 Setting up fallback button handlers...');
   
-  // Setup quick create accounts button if not already set
+  // Wait for DOM to be ready
+  if(document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupFallbackHandlers);
+    return;
+  }
+  
+  // Setup quick create accounts button - ALWAYS set up, even if init() hasn't run
   const quickCreateAccountsBtn = document.getElementById('quickCreateAccountsBtn');
-  if(quickCreateAccountsBtn && !quickCreateAccountsBtn.onclick) {
-    console.log('⚠️ Quick create button not set up, setting up now...');
-    quickCreateAccountsBtn.onclick = async ()=>{
+  if(quickCreateAccountsBtn) {
+    // Remove any existing handler and set new one
+    quickCreateAccountsBtn.onclick = null;
+    quickCreateAccountsBtn.onclick = async function(){
       console.log('🔧 Quick create button clicked!');
-      quickCreateAccountsBtn.disabled = true;
-      quickCreateAccountsBtn.textContent = '⏳ Creating accounts...';
+      this.disabled = true;
+      this.textContent = '⏳ Creating accounts...';
+      const loginMsg = document.getElementById('loginMsg');
+      
       try {
+        // Ensure DATA is loaded
+        if(!DATA || typeof loadData === 'function') {
+          DATA = await loadData(true);
+        }
+        
+        // Ensure createDefaultAccounts function exists
         if(typeof createDefaultAccounts === 'function') {
           await createDefaultAccounts(true);
-          if(typeof loadData === 'function') {
-            DATA = await loadData(true);
-          }
-          const loginMsg = document.getElementById('loginMsg');
+          DATA = await loadData(true);
+          
           if(loginMsg) {
             loginMsg.style.color = 'green';
             loginMsg.textContent = '✅ Test accounts created! Username: admin, Password: admin123';
           }
-          quickCreateAccountsBtn.textContent = '✅ Accounts Created!';
+          this.textContent = '✅ Accounts Created!';
           setTimeout(() => {
-            quickCreateAccountsBtn.textContent = '🔧 Create Test Accounts (Admin/Employee)';
-            quickCreateAccountsBtn.disabled = false;
+            this.textContent = '🔧 Create Test Accounts (Admin/Employee)';
+            this.disabled = false;
           }, 3000);
         } else {
-          throw new Error('createDefaultAccounts function not found');
+          throw new Error('createDefaultAccounts function not available yet. Please refresh the page.');
         }
       } catch(e) {
         console.error('❌ Error creating accounts:', e);
-        const loginMsg = document.getElementById('loginMsg');
         if(loginMsg) {
           loginMsg.style.color = '#c0392b';
-          loginMsg.textContent = 'Error: ' + e.message;
+          loginMsg.textContent = 'Error: ' + (e.message || 'Unknown error');
         }
-        quickCreateAccountsBtn.textContent = '❌ Error - Try Again';
-        quickCreateAccountsBtn.disabled = false;
+        this.textContent = '❌ Error - Try Again';
+        this.disabled = false;
+        alert('Error: ' + (e.message || 'Unknown error') + '. Please check console (F12) for details.');
       }
     };
+    console.log('✅ Quick create button handler set up');
   }
   
-  // Setup login button if not already set
+  // Setup login button - ALWAYS set up
   const loginBtn = document.getElementById('loginBtn');
-  if(loginBtn && !loginBtn.onclick) {
-    console.log('⚠️ Login button not set up, setting up now...');
-    // Re-run init to set up login button
-    try {
-      if(typeof init === 'function') {
-        await init();
+  if(loginBtn) {
+    loginBtn.onclick = null; // Clear any existing
+    loginBtn.onclick = async function(){
+      console.log('🔧 Login button clicked!');
+      const loginMsg = document.getElementById('loginMsg');
+      const loginUser = document.getElementById('loginUser');
+      const loginPass = document.getElementById('loginPass');
+      
+      if(!loginMsg || !loginUser || !loginPass) {
+        alert('Error: Login form elements not found. Please refresh the page.');
+        return;
       }
-    } catch(e) {
-      console.error('❌ Error in fallback init:', e);
-    }
+      
+      loginMsg.textContent = '';
+      loginMsg.style.color = '#c0392b';
+      
+      try {
+        // Load data
+        if(typeof loadData === 'function') {
+          DATA = await loadData(true);
+        } else {
+          throw new Error('loadData function not available');
+        }
+        
+        if(!DATA || !DATA.users) {
+          loginMsg.textContent = 'Error: Data not loaded. Click "Create Test Accounts" first.';
+          return;
+        }
+        
+        const u = loginUser.value.trim();
+        const p = loginPass.value;
+        
+        if(!u || !p) {
+          loginMsg.textContent = 'Enter username & password';
+          return;
+        }
+        
+        const user = DATA.users.find(x => x.username === u);
+        if(!user) {
+          loginMsg.textContent = `User "${u}" not found. Click "Create Test Accounts" button first.`;
+          return;
+        }
+        
+        if(typeof hashSHA256 === 'function') {
+          const ph = await hashSHA256(p);
+          if(ph !== user.passwordHash) {
+            loginMsg.textContent = 'Invalid password';
+            return;
+          }
+          
+          // Login successful
+          if(typeof APP !== 'undefined') {
+            APP.currentUser = {...user};
+          }
+          if(typeof afterLogin === 'function') {
+            afterLogin();
+          } else {
+            alert('Login successful but afterLogin function not found. Please refresh.');
+          }
+        } else {
+          throw new Error('hashSHA256 function not available');
+        }
+      } catch(e) {
+        console.error('❌ Login error:', e);
+        loginMsg.textContent = 'Login error: ' + (e.message || 'Unknown error');
+        alert('Login error: ' + (e.message || 'Unknown error'));
+      }
+    };
+    console.log('✅ Login button handler set up');
   }
-}, 1000);
+})();
+
+// Also set up after a delay to catch any missed buttons
+setTimeout(() => {
+  const quickBtn = document.getElementById('quickCreateAccountsBtn');
+  const loginBtn = document.getElementById('loginBtn');
+  if(quickBtn && !quickBtn.onclick) {
+    console.warn('⚠️ Quick create button still not set up, retrying...');
+    setupFallbackHandlers();
+  }
+  if(loginBtn && !loginBtn.onclick) {
+    console.warn('⚠️ Login button still not set up, retrying...');
+    setupFallbackHandlers();
+  }
+}, 2000);
 
 /* initial UI remains driven by first-run and login handlers above */
 </script>
