@@ -856,45 +856,69 @@ async function init(){
   
   if(loginBtn){
     loginBtn.onclick = async ()=>{ 
-    loginMsg.textContent=''; 
-    // Always load from Firestore on login attempt (for multi-device sync)
-    DATA = await loadData(true); // true = sync with Firestore
-    
-    const u = loginUser.value.trim(); 
-    const p = loginPass.value; 
-    
-    // Update debug panel with login attempt
-    const debugContent = document.getElementById('debugContent');
-    if(debugContent){
-      debugContent.innerHTML += `<div style="margin-top:6px;padding:6px;background:rgba(79,70,229,0.1);border-radius:4px"><strong>Login attempt:</strong> ${u ? u : '(empty)'}</div>`;
+    try {
+      loginMsg.textContent=''; 
+      loginMsg.style.color='#c0392b';
+      
+      // Ensure DATA is loaded
+      if(!DATA) {
+        console.log('⚠️ DATA not loaded, loading now...');
+        DATA = await loadData(true);
+      }
+      
+      // Always load from Firestore on login attempt (for multi-device sync)
+      DATA = await loadData(true); // true = sync with Firestore
+      
+      if(!DATA || !DATA.users) {
+        loginMsg.textContent='Error: Data not loaded. Please refresh the page.';
+        console.error('❌ DATA or DATA.users is null:', DATA);
+        return;
+      }
+      
+      const u = loginUser.value.trim(); 
+      const p = loginPass.value; 
+      
+      // Update debug panel with login attempt
+      const debugContent = document.getElementById('debugContent');
+      if(debugContent){
+        debugContent.innerHTML += `<div style="margin-top:6px;padding:6px;background:rgba(79,70,229,0.1);border-radius:4px"><strong>Login attempt:</strong> ${u ? u : '(empty)'}</div>`;
+        debugContent.innerHTML += `<div style="color:blue;margin-top:4px">📊 Total users in system: ${DATA.users.length}</div>`;
+      }
+      
+      if(!u||!p){ 
+        loginMsg.textContent='Enter username & password'; 
+        if(debugContent) debugContent.innerHTML += '<div style="color:#c0392b;margin-top:4px">❌ Empty username or password</div>';
+        return;
+      } 
+      
+      console.log('🔍 Looking for user:', u);
+      console.log('📋 Available users:', DATA.users.map(u => u.username));
+      
+      const user = DATA.users.find(x=>x.username===u); 
+      if(!user){ 
+        loginMsg.textContent='Invalid credentials - User not found. Click "Create Default Accounts" button first.';
+        if(debugContent) debugContent.innerHTML += `<div style="color:#c0392b;margin-top:4px">❌ User "${u}" not found in system. Available users: ${DATA.users.map(u => u.username).join(', ') || 'none'}</div>`;
+        return;
+      } 
+      
+      if(debugContent) debugContent.innerHTML += `<div style="color:green;margin-top:4px">✅ User found: ${user.username} (${user.role})</div>`;
+      
+      const ph = await hashSHA256(p); 
+      
+      if(ph !== user.passwordHash){ 
+        loginMsg.textContent='Invalid credentials - Wrong password'; 
+        if(debugContent) debugContent.innerHTML += '<div style="color:#c0392b;margin-top:4px">❌ Password incorrect</div>';
+        return;
+      } 
+      
+      if(debugContent) debugContent.innerHTML += '<div style="color:green;margin-top:4px;font-weight:700">✅ Login successful! Redirecting...</div>';
+      APP.currentUser = {...user}; 
+      afterLogin(); 
+    } catch(e) {
+      console.error('❌ Login error:', e);
+      loginMsg.textContent = 'Login error: ' + e.message;
+      loginMsg.style.color = '#c0392b';
     }
-    
-    if(!u||!p){ 
-      loginMsg.textContent='Enter username & password'; 
-      if(debugContent) debugContent.innerHTML += '<div style="color:#c0392b;margin-top:4px">❌ Empty username or password</div>';
-      return;
-    } 
-    
-    const user = DATA.users.find(x=>x.username===u); 
-    if(!user){ 
-      loginMsg.textContent='Invalid credentials - User not found'; 
-      if(debugContent) debugContent.innerHTML += `<div style="color:#c0392b;margin-top:4px">❌ User "${u}" not found in system</div>`;
-      return;
-    } 
-    
-    if(debugContent) debugContent.innerHTML += `<div style="color:green;margin-top:4px">✅ User found: ${user.username} (${user.role})</div>`;
-    
-    const ph = await hashSHA256(p); 
-    
-    if(ph !== user.passwordHash){ 
-      loginMsg.textContent='Invalid credentials - Wrong password'; 
-      if(debugContent) debugContent.innerHTML += '<div style="color:#c0392b;margin-top:4px">❌ Password incorrect</div>';
-      return;
-    } 
-    
-    if(debugContent) debugContent.innerHTML += '<div style="color:green;margin-top:4px;font-weight:700">✅ Login successful! Redirecting...</div>';
-    APP.currentUser = {...user}; 
-    afterLogin(); 
     };
   }
 }
@@ -1075,6 +1099,22 @@ window.MAFS = {
   createSuperAdmin: async (username, password, displayName) => await createTestAccount(username, password, displayName, 'superadmin'),
   createEmployee: async (username, password, displayName) => await createTestAccount(username, password, displayName, 'employee')
 };
+
+/* Ensure login button always works - fallback setup */
+setTimeout(async () => {
+  const loginBtn = document.getElementById('loginBtn');
+  if(loginBtn && !loginBtn.onclick) {
+    console.log('⚠️ Login button not set up, setting up now...');
+    // Re-run init to set up login button
+    try {
+      if(typeof init === 'function') {
+        await init();
+      }
+    } catch(e) {
+      console.error('❌ Error in fallback init:', e);
+    }
+  }
+}, 2000);
 
 /* initial UI remains driven by first-run and login handlers above */
 </script>
